@@ -371,6 +371,14 @@ body.has-timers .toast { bottom: calc(150px + var(--safe-b)); }
 
 
 /* ---------- Despensa simple ---------- */
+.saymsg { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 0; padding: 10px 12px; border: 2.5px solid var(--choco); border-radius: 16px; background: #fff; }
+.saymsg p { flex: 1 1 100%; margin: 0; font-weight: 700; font-size: 15px; line-height: 1.35; }
+.saymsg.ok { background: #E6FBEF; }
+.saymsg.warn { background: #FFF1C9; }
+.saymsg.info { background: #E3F4FF; }
+.say.is-listening #say { border-color: var(--fresa); box-shadow: 0 0 0 4px #FFD3DD; }
+.item.fresh { animation: fresh 2.4s ease-out; }
+@keyframes fresh { 0%, 40% { background: #FFF1A8; } 100% { background: transparent; } }
 .say .row { gap: 6px; }
 .say .hint { margin: 8px 0 0; }
 .say .quick { margin: 10px -4px -4px; padding-bottom: 4px; }

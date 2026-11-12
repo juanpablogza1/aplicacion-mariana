@@ -285,7 +285,7 @@
   // Instalación
   let deferredPrompt = null;
   const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredPrompt = e; if (S.ui.tab === "ideas") render(); });
   function installBanner() {
     if (isStandalone() || S.ui.installDismissed) return "";
@@ -390,6 +390,31 @@
   }
 
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let sayMsg = null, sayDraft = "", listening = false, fresh = new Set();
+
+  function processSay(txt) {
+    txt = String(txt || "").trim();
+    const inp = $("#say");
+    if (!txt) {
+      sayMsg = { kind: "warn", html: "Primero escribe o dicta qué hay. Ejemplo: <b>huevos, salchicha</b>." };
+      sayDraft = ""; render(); const n = $("#say"); if (n) n.focus(); return;
+    }
+    if (inp) inp.blur();
+    const before = new Map(S.inv.map((it) => [it.id, it.qty]));
+    const snap = snapshot(); const r = understand(txt);
+    fresh = new Set(S.inv.filter((it) => it.qty > 0 && !(before.get(it.id) > 0)).map((it) => it.id));
+    const parts = [];
+    if (r.added.length) parts.push(`Agregué: <b>${r.added.map(esc).join(", ")}</b>`);
+    if (r.out.length) parts.push(`Ya no hay: <b>${r.out.map((x) => esc(x.name)).join(", ")}</b>`);
+    if (r.already.length) parts.push(`Ya tenías: ${r.already.map(esc).join(", ")}`);
+    if (r.missing.length) parts.push(`No encontré: ${r.missing.map(esc).join(", ")}`);
+    const changed = r.added.length || r.out.length;
+    sayMsg = parts.length ? { kind: changed ? "ok" : "warn", html: parts.join(". ") + ".", undo: changed ? snap : null, outs: r.out.length ? r.out.map((x) => x.id) : null }
+                          : { kind: "warn", html: "No entendí. Escribe por ejemplo: <b>huevos, salchicha</b> o <b>ya no hay leche</b>." };
+    sayDraft = "";
+    save(); render(); vib(changed ? [15, 40, 15] : 30);
+    setTimeout(() => { fresh = new Set(); document.querySelectorAll(".item.fresh").forEach((el) => el.classList.remove("fresh")); }, 2500);
+  }
 
   function viewDespensa() {
     const have = S.inv.filter((it) => it.qty > 0);
@@ -398,14 +423,14 @@
     const soon = have.filter((it) => { const d = daysUntil(it.exp); return d !== null && d <= 3; }).sort((a, b) => a.exp.localeCompare(b.exp));
     const quick = QUICK.filter((q) => !have.some((it) => norm(it.name) === norm(q[0])));
     return `
-    <form class="panel say" data-form="say">
+    <form class="panel say ${listening ? "is-listening" : ""}" data-form="say">
       <label for="say" class="h2">¿Qué hay en tu casa?</label>
       <div class="row">
-        <input id="say" placeholder="Ej. huevos, salchicha, leche" autocomplete="off" enterkeyhint="done">
-        ${SR ? `<button type="button" class="btn btn-mint mic" data-act="mic" aria-label="Decirlo con la voz"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="13" rx="4" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg></button>` : ""}
+        <input id="say" placeholder="${listening ? "Te escucho…" : "Ej. huevos, salchicha, leche"}" value="${esc(sayDraft)}" autocomplete="off" autocorrect="off" enterkeyhint="done">
+        <button type="button" class="btn btn-mint mic ${listening ? "listening" : ""}" data-act="mic" aria-label="${listening ? "Dejar de escuchar" : "Dictar con la voz"}"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="13" rx="4" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg></button>
         <button class="btn" type="submit">Listo</button>
       </div>
-      <p class="hint">Cuando algo se termine, escribe <b>ya no hay salchicha</b>.</p>
+      ${sayMsg ? `<div class="saymsg ${sayMsg.kind}" role="status"><p>${sayMsg.html}</p>${sayMsg.undo ? `<button type="button" class="pill" data-act="sayUndo">Deshacer</button>` : ""}${sayMsg.outs ? `<button type="button" class="pill pill-mint" data-act="sayToShop">Al súper</button>` : ""}</div>` : `<p class="hint">Cuando algo se termine, escribe <b>ya no hay salchicha</b>.</p>`}
       ${quick.length ? `<div class="quick" aria-label="Agregar con un toque">${quick.map((q) => `<button type="button" class="qchip" data-act="quickHave" data-name="${esc(q[0])}">${q[1]} ${esc(q[0])}</button>`).join("")}</div>` : ""}
     </form>
     ${soon.length ? `<section class="panel soon"><h2 class="h2">Vence pronto</h2><p>${soon.map((it) => { const d = daysUntil(it.exp); return `<b>${esc(it.name)}</b> ${d < 0 ? "(ya venció)" : d === 0 ? "(hoy)" : d === 1 ? "(mañana)" : `(en ${d} días)`}`; }).join(", ")}</p><button class="btn btn-small" data-act="tab" data-tab="ideas">Ver recetas para usarlo</button></section>` : ""}
@@ -433,7 +458,7 @@
     const badge = d === null ? "" : d < 0 ? `<span class="badge bad">Venció</span>` : d <= 2 ? `<span class="badge warn">${d === 0 ? "Vence hoy" : d === 1 ? "Vence mañana" : "Vence en 2 días"}</span>` : "";
     const step = stepFor(it.unit);
     return `
-    <li class="item">
+    <li class="item ${fresh.has(it.id) ? "fresh" : ""}">
       <button class="item-main" data-act="editInv" data-id="${it.id}" aria-label="Detalles de ${esc(it.name)}">
         <span class="iemoji" aria-hidden="true">${esc(it.emoji)}</span>
         <span class="iname">${esc(it.name)} ${badge}</span>
@@ -686,18 +711,49 @@
   const keyFrom = (line) => cleanName(line.replace(/\(.*?\)/g, "").split(/,| para /)[0]).toLowerCase();
 
   // ---------- Voz ----------
-  let rec = null;
-  function listen(btn) {
-    if (!SR) return;
-    if (rec) { rec.stop(); return; }
+  // En iPhone el dictado web no es confiable (y no existe en la app instalada): se usa el micrófono del teclado.
+  let rec = null, recTimer = null, gotSpeech = false;
+  function keyboardDictation(reason) {
+    stopListening();
+    sayMsg = { kind: "info", html: `${reason ? reason + " " : ""}Toca el <b>micrófono de tu teclado</b> (abajo, junto a la barra espaciadora), dicta y luego toca <b>Listo</b>.` };
+    render();
+    const n = $("#say"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
+  }
+  function stopListening() {
+    clearTimeout(recTimer);
+    if (rec) { const r = rec; rec = null; try { r.abort(); } catch { /* nada */ } }
+    if (listening) { listening = false; if (S.ui.tab === "despensa") render(); }
+  }
+  function listen() {
+    if (listening) { stopListening(); return; }
+    if (!SR || isIOS) { keyboardDictation(""); return; }
     try {
-      rec = new SR(); rec.lang = "es-MX"; rec.interimResults = false; rec.maxAlternatives = 1;
-      btn.classList.add("listening"); toast("Te escucho… di por ejemplo: huevos, salchicha y leche", 6000);
-      rec.onresult = (e) => { const txt = e.results[0][0].transcript; const inp = $("#say"); if (inp) { inp.value = txt; inp.form.requestSubmit(); } };
-      rec.onerror = (e) => { toast(e.error === "not-allowed" ? "Permite el micrófono en la configuración del navegador para dictar." : "No te escuché bien. Intenta otra vez o escríbelo.", 4500); };
-      rec.onend = () => { rec = null; const m = document.querySelector('[data-act="mic"]'); if (m) m.classList.remove("listening"); };
-      rec.start();
-    } catch { rec = null; btn.classList.remove("listening"); toast("El dictado no está disponible en este navegador."); }
+      rec = new SR(); rec.lang = "es-MX"; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+    } catch { keyboardDictation("El dictado de la app no está disponible aquí."); return; }
+    gotSpeech = false; listening = true; sayDraft = "";
+    sayMsg = { kind: "info", html: "<b>Te escucho…</b> di por ejemplo: huevos, salchicha y leche." };
+    render();
+    const mine = rec;
+    rec.onresult = (e) => {
+      if (rec !== mine) return;
+      let txt = "", final = false;
+      for (let i = 0; i < e.results.length; i++) { txt += e.results[i][0].transcript; if (e.results[i].isFinal) final = true; }
+      gotSpeech = true; sayDraft = txt;
+      const n = $("#say"); if (n) n.value = txt;
+      if (final) { clearTimeout(recTimer); rec = null; listening = false; setTimeout(() => processSay(txt), 500); }
+    };
+    rec.onerror = (e) => {
+      if (rec !== mine) return;
+      const msg = { "not-allowed": "No hay permiso para el micrófono.", "service-not-allowed": "El dictado de la app no funciona en este navegador.", "no-speech": "No escuché nada.", "audio-capture": "No encontré el micrófono.", "network": "El dictado necesita internet." }[e.error] || "El dictado falló.";
+      keyboardDictation(msg);
+    };
+    rec.onend = () => {
+      if (rec !== mine) return;
+      rec = null;
+      if (listening && !gotSpeech) keyboardDictation("No escuché nada.");
+    };
+    recTimer = setTimeout(() => { if (rec === mine && !gotSpeech) keyboardDictation("El dictado no respondió."); }, 12000);
+    try { rec.start(); } catch { keyboardDictation("El dictado de la app no está disponible aquí."); }
   }
 
   // ---------- Temporizadores ----------
@@ -785,7 +841,7 @@ Responde SOLO con un arreglo JSON, sin texto extra: [{"n":"nombre","e":"un emoji
     const id = b.dataset.id, act = b.dataset.act;
     const it = S.inv.find((x) => x.id === id), sh = S.shop.find((x) => x.id === id);
     switch (act) {
-      case "tab": S.ui.tab = b.dataset.tab; closeSheet(); save(); render(); break;
+      case "tab": S.ui.tab = b.dataset.tab; sayMsg = null; stopListening(); closeSheet(); save(); render(); break;
       case "filter": { const k = b.dataset.k; S.ui.filters = S.ui.filters.includes(k) ? S.ui.filters.filter((f) => f !== k) : [...S.ui.filters, k]; S.ui.showAll = false; vib(); save(); render(); break; }
       case "clearFilters": S.ui.filters = []; S.ui.query = ""; S.ui.showAll = false; save(); render(); break;
       case "showAll": S.ui.showAll = true; save(); render(); break;
@@ -830,8 +886,10 @@ Responde SOLO con un arreglo JSON, sin texto extra: [{"n":"nombre","e":"un emoji
       case "out": { const snap = snapshot(); markOut(it); vib(); save(); render(); toast(`Ya no hay ${it.name}`, 4500, () => { shopOne(it); save(); render(); toast("Agregado a la lista del súper", 3000, () => restore(snap)); }, "Al súper"); break; }
       case "haveAgain": it.qty = it.simple || !it.lastQty ? 1 : it.lastQty; vib(); save(); render(); break;
       case "outToShop": shopOne(it); vib(); save(); render(); toast(`Se agregó al súper: ${it.name}`); break;
-      case "quickHave": { const r = understand(b.dataset.name); vib(); save(); render(); if (r.added.length) toast(`Se agregó: ${r.added.join(", ")}`); break; }
-      case "mic": listen(b); break;
+      case "quickHave": processSay(b.dataset.name); break;
+      case "mic": listen(); break;
+      case "sayUndo": if (sayMsg && sayMsg.undo) { restore(sayMsg.undo); sayMsg = { kind: "warn", html: "Listo, lo regresé como estaba." }; render(); } break;
+      case "sayToShop": if (sayMsg && sayMsg.outs) { let n = 0; sayMsg.outs.forEach((oid) => { const x = S.inv.find((y) => y.id === oid); if (x && shopOne(x)) n++; }); sayMsg = { kind: "ok", html: n ? "Lo pasé a la lista del súper." : "Ya estaba en la lista del súper." }; save(); render(); } break;
       case "editInv": openItemForm(it); break;
       case "toShop": if (addShop({ name: it.name, unit: it.unit, cat: it.cat, emoji: it.emoji })) { save(); render(); toast(`Se agregó al súper: ${it.name}`); } else toast("Ya está en la lista"); closeSheet(); break;
       case "quick": { const f = sheetBody.querySelector('[data-form="item"]'); f.name.value = b.dataset.name; f.cat.value = b.dataset.cat; f.emoji.value = b.dataset.emoji; f.unit.value = QUICK_UNIT[b.dataset.name] || "pza"; f.qty.focus(); f.qty.select(); break; }
@@ -883,6 +941,8 @@ Responde SOLO con un arreglo JSON, sin texto extra: [{"n":"nombre","e":"un emoji
     }
   });
 
+  document.addEventListener("input", (e) => { if (e.target.id === "say") sayDraft = e.target.value; });
+
   document.addEventListener("submit", (e) => {
     const f = e.target; const kind = f.dataset.form; if (!kind) return;
     e.preventDefault();
@@ -902,19 +962,7 @@ Responde SOLO con un arreglo JSON, sin texto extra: [{"n":"nombre","e":"un emoji
       else { addInv(data); toast(`Se agregó: ${data.name}`); }
       save(); closeSheet(); render();
     }
-    if (kind === "say") {
-      const inp = $("#say"); const txt = inp.value.trim(); if (!txt) return;
-      const snap = snapshot(); const r = understand(txt);
-      save(); render(); vib();
-      const parts = [];
-      if (r.added.length) parts.push(`Se agregó: ${r.added.join(", ")}`);
-      if (r.out.length) parts.push(`Ya no hay: ${r.out.map((x) => x.name).join(", ")}`);
-      if (r.already.length) parts.push(`Ya tenías: ${r.already.join(", ")}`);
-      if (r.missing.length) parts.push(`No encontré: ${r.missing.join(", ")}`);
-      if (r.out.length && !r.added.length) toast(parts.join(". "), 5000, () => { r.out.forEach(shopOne); save(); render(); toast("Agregado a la lista del súper"); }, "Al súper");
-      else toast(parts.join(". ") || "No entendí. Escribe por ejemplo: huevos, salchicha", 4500, r.added.length || r.out.length ? () => restore(snap) : undefined);
-      setTimeout(() => { const n = $("#say"); if (n) n.focus(); }, 50);
-    }
+    if (kind === "say") { stopListening(); processSay($("#say").value); }
     if (kind === "shopQty") { const s = S.shop.find((x) => x.id === f.dataset.id); s.qty = Math.max(0, parseFloat(f.qty.value) || 0); s.unit = f.unit.value; save(); closeSheet(); render(); }
     if (kind === "recipe") {
       const fd = new FormData(f);
