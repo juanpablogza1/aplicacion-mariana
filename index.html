@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>La cocina de Mariana</title>
+  <meta name="description" content="Despensa, ideas de comida y lista del súper de Mariana.">
+  <meta name="theme-color" content="#FF8FAB">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Cocina Mariana">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="sign">
+      <h1>La cocina<br>de Mariana</h1>
+    </div>
+    <div class="host">
+      <div id="mascot" class="mascot"></div>
+      <p id="bubble" class="bubble" aria-live="polite"></p>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1"></main>
+
+  <nav class="tabs" aria-label="Secciones">
+    <button class="tab" data-act="tab" data-tab="ideas"><span class="ti" aria-hidden="true">🍳</span>Ideas</button>
+    <button class="tab" data-act="tab" data-tab="despensa"><span class="ti" aria-hidden="true">🧺</span>Despensa</button>
+    <button class="tab" data-act="tab" data-tab="super"><span class="ti" aria-hidden="true">🛒</span>Súper<span id="shopBadge" class="nbadge" hidden></span></button>
+    <button class="tab" data-act="tab" data-tab="gustos"><span class="ti" aria-hidden="true">💗</span>Gustos</button>
+  </nav>
+
+  <dialog id="sheet" class="sheet" aria-label="Detalle"><div id="sheetBody"></div></dialog>
+  <div id="toast" class="toast" role="status"></div>
+
+  <script src="recipes.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
