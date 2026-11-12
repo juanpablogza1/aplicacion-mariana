@@ -82,7 +82,7 @@
     const w = norm(key).split(" ").filter((x) => !["y", "de", "al", "gusto"].includes(x));
     return w.length > 0 && w.every((x) => STAPLES.has(x) || x === "oliva");
   }
-  const quickFor = (name) => QUICK.find((x) => norm(x[0]) === norm(name) || matches(x[0], name));
+  const quickFor = (name) => QUICK.find((x) => norm(x[0]) === norm(name)) || QUICK.find((x) => matches(name, x[0]));
   const guessEmoji = (name) => (quickFor(name) || [0, "🍽️"])[1];
   const guessCat = (name) => (quickFor(name) || [0, 0, "Otros"])[2];
   const guessUnit = (name) => { const q = quickFor(name); return (q && QUICK_UNIT[q[0]]) || "pza"; };
@@ -104,7 +104,7 @@
     const U = { kilo: "kg", kilos: "kg", kg: "kg", gramo: "g", gramos: "g", gr: "g", g: "g", litro: "l", litros: "l", lt: "l", lts: "l", l: "l", ml: "ml", pza: "pza", pzas: "pza", pieza: "pza", piezas: "pza", paquete: "paquete", paquetes: "paquete", lata: "lata", latas: "lata", bolsa: "bolsa", bolsas: "bolsa", caja: "caja", cajas: "caja", manojo: "manojo", manojos: "manojo" };
     if (/^docenas?$/.test(unit)) { qty *= 12; unit = "pza"; } else unit = U[unit] || "";
     const name = cap(m[3].trim());
-    return { name, qty: qty || 1, unit: unit || (q ? "pza" : guessUnit(name)) };
+    return { name, qty: qty || 1, unit: unit || (q ? "pza" : guessUnit(name)), simple: !q && !unit };
   }
 
   // ---------- Recetas ----------
@@ -158,11 +158,17 @@
   }
 
   // ---------- Inventario / súper ----------
-  function addInv({ name, qty = 1, unit = "pza", cat, emoji, min = 0, exp = "" }) {
+  function addInv({ name, qty = 1, unit = "pza", cat, emoji, min = 0, exp = "", simple }) {
     name = String(name || "").trim(); if (!name) return;
-    const ex = S.inv.find((it) => norm(it.name) === norm(name) && it.unit === unit);
-    if (ex) { ex.qty = Math.round((ex.qty + (Number(qty) || 0)) * 100) / 100; if (exp) ex.exp = exp; }
-    else S.inv.push({ id: uid(), name, qty: Number(qty) || 0, unit, cat: cat || guessCat(name), emoji: emoji || guessEmoji(name), min: Number(min) || 0, exp });
+    const ex = S.inv.find((it) => norm(it.name) === norm(name) && (it.unit === unit || it.simple || it.qty <= 0));
+    if (ex) {
+      if (ex.qty <= 0 || ex.simple) { ex.qty = 0; ex.unit = unit; }
+      ex.qty = Math.round((ex.qty + (Number(qty) || 0)) * 100) / 100;
+      ex.simple = simple ?? (ex.unit === "pza" && ex.qty === 1 && !ex.exp);
+      if (exp) { ex.exp = exp; ex.simple = false; }
+    } else {
+      S.inv.push({ id: uid(), name, qty: Number(qty) || 0, unit, cat: cat || guessCat(name), emoji: emoji || guessEmoji(name), min: Number(min) || 0, exp, simple: simple ?? (unit === "pza" && Number(qty) === 1 && !exp) });
+    }
   }
   function addShop({ name, qty = 1, unit, cat, emoji, src = "" }) {
     name = String(name || "").trim(); if (!name) return false;
@@ -172,8 +178,61 @@
     return true;
   }
   const lowStock = () => S.inv.filter((it) => it.qty <= (it.min || 0));
+  function markOut(it) { if (it.qty > 0) it.lastQty = it.qty; it.qty = 0; }
+  function shopOne(it) { return addShop({ name: it.name, unit: it.simple ? undefined : it.unit, cat: it.cat, emoji: it.emoji, src: "Se acabó" }); }
   function checkLow(it) {
-    if (it.qty <= (it.min || 0) && addShop({ name: it.name, unit: it.unit, cat: it.cat, emoji: it.emoji, src: "Se acabó" })) toast(`Se acabó: ${it.name}. Ya está en el súper.`);
+    if (it.qty <= 0) toast(`Ya no hay ${it.name}`, 4500, () => { shopOne(it); save(); render(); toast("Agregado a la lista del súper"); }, "Al súper");
+  }
+
+  // ---------- Hablarle a la despensa ----------
+  // "huevos, salchicha y leche"  ·  "ya no hay salchicha"  ·  "se acabaron los huevos"  ·  "2 kg pollo"
+  const ADD_WORDS = new Set(["ya", "hay", "tengo", "tenemos", "compre", "traje", "agrega", "agregar", "agregale", "pon", "ponle", "anota", "tambien", "y"]);
+  const OUT_RES = [
+    /^(?:ya\s+)?no\s+(?:hay|tengo|tenemos|queda|quedan)\s+(?:mas\s+)?(.+)$/,
+    /^(?:ya\s+)?se\s+(?:acabo|acabaron|termino|terminaron|gasto|gastaron)\s+(.+)$/,
+    /^(?:quita|quitale|quitar|borra|borrar|elimina)\s+(.+)$/,
+    /^(.+?)\s+(?:ya\s+)?(?:se\s+acabo|se\s+acabaron|se\s+termino|se\s+terminaron|no\s+hay|ya\s+no\s+hay|ya\s+no|se\s+gasto)$/,
+  ];
+  const ARTICLES = /^(?:el|la|los|las|un|unos|unas|mas|de|del)\s+/i;
+  function vocab() { return new Set([...QUICK.map((q) => norm(q[0])), ...KEYSET, ...S.inv.map((i) => norm(i.name)), ...Object.keys(S.buyCount || {})]); }
+  function splitKnown(seg) { // "huevos salchicha leche" -> 3 cosas, solo si todas se reconocen
+    const words = seg.split(/\s+/); if (words.length < 2) return [seg];
+    const V = vocab(); const out = []; let i = 0;
+    while (i < words.length) {
+      let n = Math.min(3, words.length - i);
+      while (n > 0 && !V.has(norm(words.slice(i, i + n).join(" ")))) n--;
+      if (!n) return [seg];
+      out.push(words.slice(i, i + n).join(" ")); i += n;
+    }
+    return out;
+  }
+  function itemsOf(text) {
+    return text.split(/,|\s+y\s+|\s+e\s+|\s+ni\s+/i).map((x) => { let s = x.trim(); while (ARTICLES.test(s)) s = s.replace(ARTICLES, ""); return s; })
+      .filter(Boolean).flatMap((s) => (/^(\d|medio|media|una?\s)/i.test(s) ? [s] : splitKnown(s)));
+  }
+  function understand(text) {
+    const added = [], already = [], out = [], missing = [];
+    for (const sentence of String(text).split(/[.;\n]+/).map((s) => s.trim()).filter(Boolean)) {
+      const t = strip(sentence);
+      const outMatch = OUT_RES.map((re) => t.match(re)).find(Boolean);
+      if (outMatch) {
+        for (const term of itemsOf(outMatch[1])) {
+          const hits = S.inv.filter((it) => it.qty > 0 && (norm(it.name) === norm(term) || matches(it.name, term)));
+          if (hits.length) hits.forEach((it) => { markOut(it); out.push(it); }); else missing.push(term);
+        }
+        continue;
+      }
+      const words = sentence.split(/\s+/);
+      while (words.length > 1 && ADD_WORDS.has(strip(words[0]))) words.shift();
+      for (const raw of itemsOf(words.join(" "))) {
+        const r = parseLine(raw); if (!r) continue;
+        const ex = S.inv.find((it) => norm(it.name) === norm(r.name));
+        if (r.simple && ex && ex.qty > 0) { already.push(ex.name); continue; }
+        if (r.simple && ex) { ex.qty = ex.simple || !ex.lastQty ? 1 : ex.lastQty; added.push(ex.name); continue; }
+        addInv(r); added.push(r.name);
+      }
+    }
+    return { added, already, out, missing };
   }
 
   // ---------- Mascota ----------
@@ -201,7 +260,7 @@
     const low = lowStock();
     if (!S.inv.length) return ["Hola, Mariana. Llena tu despensa y yo te digo qué cocinar.", "happy"];
     if (exp.length) return [`${exp.slice(0, 3).map((x) => x.name).join(", ")} ${exp.length > 1 ? "vencen" : "vence"} pronto. Ya subí las recetas que ${exp.length > 1 ? "los" : "lo"} usan.`, "happy"];
-    if (S.ui.tab === "despensa" && low.length) return [`Se está acabando: ${low.slice(0, 3).map((x) => x.name).join(", ")}.`, "sad"];
+    if (S.ui.tab === "despensa" && low.length) return [`Ya no hay: ${low.slice(0, 3).map((x) => x.name).join(", ")}${low.length > 3 ? " y más" : ""}. Lo ves en Súper.`, "sad"];
     const h = new Date().getHours();
     return [(h < 11 ? "Buenos días. ¿Qué desayunamos?" : h < 17 ? "¿Qué hacemos de comer?" : "¿Algo rico para cenar?") + " Tócame para una sorpresa.", "happy"];
   }
@@ -330,42 +389,61 @@
     </article>`;
   }
 
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
   function viewDespensa() {
-    const f = strip(S.ui.invFilter || "");
-    const items = S.inv.filter((it) => !f || strip(it.name).includes(f));
-    const groups = CATS.map((c) => [c, items.filter((it) => (CATS.includes(it.cat) ? it.cat : "Otros") === c).sort((a, b) => a.name.localeCompare(b.name, "es"))]).filter(([, l]) => l.length);
-    const soon = S.inv.filter((it) => { const d = daysUntil(it.exp); return it.qty > 0 && d !== null && d <= 3; }).sort((a, b) => a.exp.localeCompare(b.exp));
+    const have = S.inv.filter((it) => it.qty > 0);
+    const gone = S.inv.filter((it) => it.qty <= 0).sort((a, b) => a.name.localeCompare(b.name, "es"));
+    const groups = CATS.map((c) => [c, have.filter((it) => (CATS.includes(it.cat) ? it.cat : "Otros") === c).sort((a, b) => a.name.localeCompare(b.name, "es"))]).filter(([, l]) => l.length);
+    const soon = have.filter((it) => { const d = daysUntil(it.exp); return d !== null && d <= 3; }).sort((a, b) => a.exp.localeCompare(b.exp));
+    const quick = QUICK.filter((q) => !have.some((it) => norm(it.name) === norm(q[0])));
     return `
-    <div class="toolbar">
-      <input id="invSearch" type="search" placeholder="Buscar en ${S.inv.length} cosas" value="${esc(S.ui.invFilter || "")}" autocomplete="off" aria-label="Buscar en la despensa">
-      <button class="btn" data-act="addInv">Agregar</button>
-    </div>
-    ${soon.length && !f ? `<section class="panel soon"><h2 class="h2">Vence pronto</h2><p>${soon.map((it) => { const d = daysUntil(it.exp); return `<b>${esc(it.name)}</b> ${d < 0 ? "(ya venció)" : d === 0 ? "(hoy)" : d === 1 ? "(mañana)" : `(en ${d} días)`}`; }).join(", ")}</p><button class="btn btn-small" data-act="tab" data-tab="ideas">Ver recetas para usarlo</button></section>` : ""}
-    ${!S.inv.length ? `<div class="empty">${TOMATINA("happy", 100)}<p>Tu despensa está vacía. Toca <b>Agregar</b> para poner lo que hay en el refri y la alacena. Puedes escribir varias cosas a la vez.</p></div>` : ""}
-    ${S.inv.length && !items.length ? `<p class="note">No hay nada que se llame "${esc(S.ui.invFilter)}".</p>` : ""}
+    <form class="panel say" data-form="say">
+      <label for="say" class="h2">¿Qué hay en tu casa?</label>
+      <div class="row">
+        <input id="say" placeholder="Ej. huevos, salchicha, leche" autocomplete="off" enterkeyhint="done">
+        ${SR ? `<button type="button" class="btn btn-mint mic" data-act="mic" aria-label="Decirlo con la voz"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="13" rx="4" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg></button>` : ""}
+        <button class="btn" type="submit">Listo</button>
+      </div>
+      <p class="hint">Cuando algo se termine, escribe <b>ya no hay salchicha</b>.</p>
+      ${quick.length ? `<div class="quick" aria-label="Agregar con un toque">${quick.map((q) => `<button type="button" class="qchip" data-act="quickHave" data-name="${esc(q[0])}">${q[1]} ${esc(q[0])}</button>`).join("")}</div>` : ""}
+    </form>
+    ${soon.length ? `<section class="panel soon"><h2 class="h2">Vence pronto</h2><p>${soon.map((it) => { const d = daysUntil(it.exp); return `<b>${esc(it.name)}</b> ${d < 0 ? "(ya venció)" : d === 0 ? "(hoy)" : d === 1 ? "(mañana)" : `(en ${d} días)`}`; }).join(", ")}</p><button class="btn btn-small" data-act="tab" data-tab="ideas">Ver recetas para usarlo</button></section>` : ""}
+    ${!S.inv.length ? `<div class="empty">${TOMATINA("happy", 100)}<p>Escribe arriba lo que hay en tu casa, separado por comas, o toca los botoncitos.</p></div>` : ""}
+    ${have.length ? `<p class="count">Tienes ${have.length} ${have.length === 1 ? "cosa" : "cosas"}</p>` : ""}
     ${groups.map(([c, l]) => `
       <section class="group">
         <h2 class="gtitle"><span aria-hidden="true">${CAT_EMOJI[c]}</span>${c}</h2>
         <ul class="items">${l.map(itemRow).join("")}</ul>
-      </section>`).join("")}`;
+      </section>`).join("")}
+    ${gone.length ? `
+      <section class="group gone">
+        <h2 class="gtitle"><span aria-hidden="true">🫙</span>Ya no hay <span class="cnt">${gone.length}</span></h2>
+        <ul class="items">${gone.map((it) => { const inList = S.shop.some((s) => !s.done && norm(s.name) === norm(it.name)); return `
+          <li class="item"><span class="iemoji" aria-hidden="true">${esc(it.emoji)}</span><span class="iname">${esc(it.name)}</span>
+            ${inList ? `<span class="inlist">En la lista</span>` : `<button class="pill" data-act="outToShop" data-id="${it.id}">Al súper</button>`}
+            <button class="pill pill-mint" data-act="haveAgain" data-id="${it.id}">Ya hay</button>
+            <button class="x" data-act="delInv" data-id="${it.id}" aria-label="Borrar ${esc(it.name)} de la despensa">×</button></li>`; }).join("")}</ul>
+      </section>` : ""}
+    <button class="linkbtn center" data-act="addInv">Agregar con cantidad o fecha de caducidad</button>`;
   }
 
   function itemRow(it) {
     const d = daysUntil(it.exp);
     const badge = d === null ? "" : d < 0 ? `<span class="badge bad">Venció</span>` : d <= 2 ? `<span class="badge warn">${d === 0 ? "Vence hoy" : d === 1 ? "Vence mañana" : "Vence en 2 días"}</span>` : "";
-    const low = it.qty <= (it.min || 0);
     const step = stepFor(it.unit);
     return `
-    <li class="item ${low ? "low" : ""}">
-      <button class="item-main" data-act="editInv" data-id="${it.id}">
+    <li class="item">
+      <button class="item-main" data-act="editInv" data-id="${it.id}" aria-label="Detalles de ${esc(it.name)}">
         <span class="iemoji" aria-hidden="true">${esc(it.emoji)}</span>
         <span class="iname">${esc(it.name)} ${badge}</span>
-        <span class="iqty">${it.qty === 0 ? "Se acabó" : `${fmtQty(it.qty)} ${esc(it.unit)}`}</span>
+        ${it.simple ? "" : `<span class="iqty">${fmtQty(it.qty)} ${esc(it.unit)}</span>`}
       </button>
+      ${it.simple ? `<button class="pill" data-act="out" data-id="${it.id}">Se acabó</button>` : `
       <span class="stepper">
         <button data-act="dec" data-id="${it.id}" aria-label="Quitar ${step} ${esc(it.unit)} de ${esc(it.name)}">−</button>
         <button data-act="inc" data-id="${it.id}" aria-label="Agregar ${step} ${esc(it.unit)} de ${esc(it.name)}">+</button>
-      </span>
+      </span>`}
     </li>`;
   }
 
@@ -383,7 +461,7 @@
       <input id="shopInput" placeholder="Ej. 2 kg tortilla, leche, jabón" autocomplete="off" enterkeyhint="done" aria-label="Agregar a la lista">
       <button class="btn" type="submit">Agregar</button>
     </form>
-    ${low.length ? `<section class="panel suggest"><p><b>Se acabó o queda poco:</b> ${low.map((x) => esc(x.name)).join(", ")}</p><button class="btn btn-mint btn-small" data-act="addLow">Agregar a la lista</button></section>` : ""}
+    ${low.length ? `<section class="panel suggest"><p><b>Ya no hay:</b> ${low.map((x) => esc(x.name)).join(", ")}</p><button class="btn btn-mint btn-small" data-act="addLow">Agregar a la lista</button></section>` : ""}
     ${freq.length ? `<section class="freq"><h2 class="sec-title">Lo que compras seguido</h2><div class="chips">${freq.map((b) => `<button class="chip" data-act="addFreq" data-name="${esc(b.name)}">+ ${esc(b.name)}</button>`).join("")}</div></section>` : ""}
     ${!S.shop.length ? `<div class="empty">${TOMATINA("happy", 100)}<p>Tu lista está vacía. Escribe arriba o, desde una receta, toca <b>Agregar lo que falta al súper</b>.</p></div>` : ""}
     ${groups.map(([c, l]) => `
@@ -529,16 +607,20 @@
     const r = getRecipe(id); const a = analyze(r);
     const used = [...a.have, ...a.optHave].filter((h, i, arr) => arr.findIndex((x) => x.inv.id === h.inv.id) === i);
     if (!used.length) { finishCook(r); return; }
+    const simple = used.filter((h) => h.inv.simple), qtyd = used.filter((h) => !h.inv.simple);
     openSheet(`
-      <h2>¿Cuánto te quedó?</h2>
-      <p class="hint">Ajusta lo que queda de cada ingrediente. Lo que llegue a cero se pasa a la lista del súper.</p>
+      <h2>${qtyd.length ? "¿Cuánto te quedó?" : "¿Se acabó algo?"}</h2>
+      <p class="hint">${qtyd.length ? "Ajusta lo que queda. " : ""}Marca lo que ya se terminó; lo demás sigue en tu despensa.</p>
       <form data-form="cook" data-id="${esc(r.id)}">
-        <ul class="items">${used.map((h) => {
+        <ul class="items">
+        ${simple.map((h) => { const it = h.inv; return `<li class="item"><label class="check"><input type="checkbox" name="out" value="${it.id}"><span class="box" aria-hidden="true"></span><span class="iemoji" aria-hidden="true">${esc(it.emoji)}</span><span class="iname">${esc(it.name)}<small>se acabó</small></span></label></li>`; }).join("")}
+        ${qtyd.map((h) => {
           const it = h.inv; const left = Math.max(0, Math.round((it.qty - Math.min(it.qty, estimateUse(h.t, it))) * 100) / 100);
           return `<li class="item"><span class="iemoji" aria-hidden="true">${esc(it.emoji)}</span><span class="iname">${esc(it.name)}<small>tenías ${fmtQty(it.qty)} ${esc(it.unit)}</small></span>
             <span class="numwrap"><input type="number" inputmode="decimal" min="0" step="any" name="${it.id}" value="${fmtQty(left)}" aria-label="Queda de ${esc(it.name)}"><span>${esc(it.unit)}</span></span></li>`;
-        }).join("")}</ul>
-        <div class="sheet-actions"><button class="btn" type="submit">Actualizar despensa</button><button class="btn btn-ghost" type="button" data-act="close">Cancelar</button></div>
+        }).join("")}
+        </ul>
+        <div class="sheet-actions"><button class="btn" type="submit">Listo</button><button class="btn btn-ghost" type="button" data-act="close">Cancelar</button></div>
       </form>`);
   }
   function finishCook(r, undo) {
@@ -564,25 +646,12 @@
           <label class="grow">Unidad<select name="unit">${UNITS.map((u) => `<option ${u === it.unit ? "selected" : ""}>${u}</option>`).join("")}</select></label>
         </div>
         <label>Categoría<select name="cat">${CATS.map((c) => `<option ${c === it.cat ? "selected" : ""}>${c}</option>`).join("")}</select></label>
-        <div class="row">
-          <label class="grow">Avisar cuando queden<input name="min" type="number" inputmode="decimal" min="0" step="any" value="${fmtQty(it.min || 0)}"></label>
-          <label class="grow">Caduca<input name="exp" type="date" value="${esc(it.exp || "")}"></label>
-        </div>
+        <label>Caduca <small>opcional</small><input name="exp" type="date" value="${esc(it.exp || "")}"></label>
         <div class="sheet-actions">
           <button class="btn" type="submit">${isNew ? "Agregar" : "Guardar"}</button>
-          ${isNew ? `<button class="btn btn-ghost" type="button" data-act="bulk">Escribir varias cosas a la vez</button>` : `<button class="btn btn-ghost" type="button" data-act="toShop" data-id="${it.id}">Agregar al súper</button><button class="btn btn-ghost" type="button" data-act="delInv" data-id="${it.id}">Eliminar</button>`}
+          ${isNew ? "" : `<button class="btn btn-ghost" type="button" data-act="toShop" data-id="${it.id}">Agregar al súper</button><button class="btn btn-ghost" type="button" data-act="delInv" data-id="${it.id}">Borrar de la despensa</button>`}
           <button class="btn btn-ghost" type="button" data-act="close">Cancelar</button>
         </div>
-      </form>`);
-  }
-
-  function openBulk() {
-    openSheet(`
-      <h2>Agregar varias cosas</h2>
-      <p class="hint">Una por renglón o separadas por coma. Puedes poner cantidad y unidad.</p>
-      <form class="stack" data-form="bulk">
-        <textarea name="txt" rows="7" autofocus aria-label="Cosas para agregar" placeholder="12 huevos&#10;2 kg pollo&#10;1 l leche&#10;medio kilo de jamón&#10;cebolla, ajo, limones"></textarea>
-        <div class="sheet-actions"><button class="btn" type="submit">Agregar a la despensa</button><button class="btn btn-ghost" type="button" data-act="close">Cancelar</button></div>
       </form>`);
   }
 
@@ -615,6 +684,21 @@
       </form>`);
   }
   const keyFrom = (line) => cleanName(line.replace(/\(.*?\)/g, "").split(/,| para /)[0]).toLowerCase();
+
+  // ---------- Voz ----------
+  let rec = null;
+  function listen(btn) {
+    if (!SR) return;
+    if (rec) { rec.stop(); return; }
+    try {
+      rec = new SR(); rec.lang = "es-MX"; rec.interimResults = false; rec.maxAlternatives = 1;
+      btn.classList.add("listening"); toast("Te escucho… di por ejemplo: huevos, salchicha y leche", 6000);
+      rec.onresult = (e) => { const txt = e.results[0][0].transcript; const inp = $("#say"); if (inp) { inp.value = txt; inp.form.requestSubmit(); } };
+      rec.onerror = (e) => { toast(e.error === "not-allowed" ? "Permite el micrófono en la configuración del navegador para dictar." : "No te escuché bien. Intenta otra vez o escríbelo.", 4500); };
+      rec.onend = () => { rec = null; const m = document.querySelector('[data-act="mic"]'); if (m) m.classList.remove("listening"); };
+      rec.start();
+    } catch { rec = null; btn.classList.remove("listening"); toast("El dictado no está disponible en este navegador."); }
+  }
 
   // ---------- Temporizadores ----------
   const timers = [];
@@ -684,11 +768,11 @@ Responde SOLO con un arreglo JSON, sin texto extra: [{"n":"nombre","e":"un emoji
 
   // ---------- Toast ----------
   let tTimer;
-  function toast(msg, ms = 2600, undo) {
+  function toast(msg, ms = 2600, action, label = "Deshacer") {
     const t = $("#toast");
-    t.innerHTML = `<span>${esc(msg)}</span>${undo ? `<button id="undoBtn">Deshacer</button>` : ""}`;
+    t.innerHTML = `<span>${esc(msg)}</span>${action ? `<button id="undoBtn">${esc(label)}</button>` : ""}`;
     t.classList.add("show");
-    if (undo) $("#undoBtn").onclick = () => { undo(); t.classList.remove("show"); };
+    if (action) $("#undoBtn").onclick = () => { t.classList.remove("show"); action(); };
     clearTimeout(tTimer); tTimer = setTimeout(() => t.classList.remove("show"), ms);
   }
 
@@ -743,7 +827,11 @@ Responde SOLO con un arreglo JSON, sin texto extra: [{"n":"nombre","e":"un emoji
       case "delRecipe": if (confirm("¿Borrar esta receta?")) { S.myRecipes = S.myRecipes.filter((r) => r.id !== id); S.plan = S.plan.filter((p) => p !== id); save(); closeSheet(); render(); toast("Receta borrada"); } break;
       case "saveAi": { const r = getRecipe(id); const copy = { ...JSON.parse(JSON.stringify(r)), id: "my-" + uid(), ai: false, mine: true }; S.myRecipes.push(copy); S.aiRecipes = S.aiRecipes.filter((x) => x.id !== id); S.plan = S.plan.map((p) => (p === id ? copy.id : p)); save(); closeSheet(); render(); toast("Guardada en tus recetas"); break; }
       case "addInv": openItemForm(); break;
-      case "bulk": openBulk(); break;
+      case "out": { const snap = snapshot(); markOut(it); vib(); save(); render(); toast(`Ya no hay ${it.name}`, 4500, () => { shopOne(it); save(); render(); toast("Agregado a la lista del súper", 3000, () => restore(snap)); }, "Al súper"); break; }
+      case "haveAgain": it.qty = it.simple || !it.lastQty ? 1 : it.lastQty; vib(); save(); render(); break;
+      case "outToShop": shopOne(it); vib(); save(); render(); toast(`Se agregó al súper: ${it.name}`); break;
+      case "quickHave": { const r = understand(b.dataset.name); vib(); save(); render(); if (r.added.length) toast(`Se agregó: ${r.added.join(", ")}`); break; }
+      case "mic": listen(b); break;
       case "editInv": openItemForm(it); break;
       case "toShop": if (addShop({ name: it.name, unit: it.unit, cat: it.cat, emoji: it.emoji })) { save(); render(); toast(`Se agregó al súper: ${it.name}`); } else toast("Ya está en la lista"); closeSheet(); break;
       case "quick": { const f = sheetBody.querySelector('[data-form="item"]'); f.name.value = b.dataset.name; f.cat.value = b.dataset.cat; f.emoji.value = b.dataset.emoji; f.unit.value = QUICK_UNIT[b.dataset.name] || "pza"; f.qty.focus(); f.qty.select(); break; }
@@ -756,7 +844,7 @@ Responde SOLO con un arreglo JSON, sin texto extra: [{"n":"nombre","e":"un emoji
       case "delInv": { const snap = snapshot(); const name = it.name; S.inv = S.inv.filter((x) => x.id !== id); save(); closeSheet(); render(); toast(`Se quitó: ${name}`, 4500, () => restore(snap)); break; }
       case "delShop": { const snap = snapshot(); const name = sh.name; S.shop = S.shop.filter((x) => x.id !== id); save(); render(); toast(`Se quitó: ${name}`, 4000, () => restore(snap)); break; }
       case "shopQty": openShopQty(sh); break;
-      case "addLow": { let n = 0; lowStock().forEach((x) => { if (addShop({ name: x.name, unit: x.unit, cat: x.cat, emoji: x.emoji, src: "Se acabó" })) n++; }); save(); render(); toast(`${n} ${n === 1 ? "agregado" : "agregados"} a la lista`); break; }
+      case "addLow": { let n = 0; lowStock().forEach((x) => { if (shopOne(x)) n++; }); save(); render(); toast(`${n} ${n === 1 ? "agregado" : "agregados"} a la lista`); break; }
       case "addFreq": { const bc = Object.values(S.buyCount).find((x) => x.name === b.dataset.name); if (bc) addShop({ name: bc.name, unit: bc.unit, cat: bc.cat, emoji: bc.emoji, qty: bc.qty || 1 }); vib(); save(); render(); break; }
       case "toPantry": {
         const snap = snapshot(); const done = S.shop.filter((s) => s.done);
@@ -795,13 +883,6 @@ Responde SOLO con un arreglo JSON, sin texto extra: [{"n":"nombre","e":"un emoji
     }
   });
 
-  document.addEventListener("input", (e) => {
-    if (e.target.id === "invSearch") {
-      S.ui.invFilter = e.target.value; const pos = e.target.selectionStart; render();
-      const n = $("#invSearch"); n.focus(); n.setSelectionRange(pos, pos);
-    }
-  });
-
   document.addEventListener("submit", (e) => {
     const f = e.target; const kind = f.dataset.form; if (!kind) return;
     e.preventDefault();
@@ -815,15 +896,24 @@ Responde SOLO con un arreglo JSON, sin texto extra: [{"n":"nombre","e":"un emoji
     if (kind === "ai") { S.ai.key = $("#aiKey").value.trim(); S.ai.model = $("#aiModel").value.trim() || "claude-sonnet-5-5"; save(); render(); toast(S.ai.key ? "Clave guardada. El botón de IA ya aparece en Ideas." : "Clave borrada"); }
     if (kind === "item") {
       const fd = Object.fromEntries(new FormData(f));
-      const data = { name: fd.name.trim(), qty: parseFloat(fd.qty) || 0, unit: fd.unit, cat: fd.cat, emoji: fd.emoji.trim() || guessEmoji(fd.name), min: parseFloat(fd.min) || 0, exp: fd.exp };
-      if (f.dataset.id) { const it = S.inv.find((x) => x.id === f.dataset.id); Object.assign(it, data); checkLow(it); toast("Guardado"); }
+      const data = { name: fd.name.trim(), qty: parseFloat(fd.qty) || 0, unit: fd.unit, cat: fd.cat, emoji: fd.emoji.trim() || guessEmoji(fd.name), exp: fd.exp };
+      data.simple = data.unit === "pza" && data.qty === 1 && !data.exp;
+      if (f.dataset.id) { const it = S.inv.find((x) => x.id === f.dataset.id); Object.assign(it, data); if (it.qty <= 0) markOut(it); toast("Guardado"); }
       else { addInv(data); toast(`Se agregó: ${data.name}`); }
       save(); closeSheet(); render();
     }
-    if (kind === "bulk") {
-      const parts = f.txt.value.split(/\n|,(?!\d)/).map((x) => x.trim()).filter(Boolean);
-      let n = 0; parts.forEach((p) => { const r = parseLine(p); if (r) { addInv(r); n++; } });
-      save(); closeSheet(); render(); toast(n ? `${n} ${n === 1 ? "cosa agregada" : "cosas agregadas"} a la despensa` : "No escribiste nada");
+    if (kind === "say") {
+      const inp = $("#say"); const txt = inp.value.trim(); if (!txt) return;
+      const snap = snapshot(); const r = understand(txt);
+      save(); render(); vib();
+      const parts = [];
+      if (r.added.length) parts.push(`Se agregó: ${r.added.join(", ")}`);
+      if (r.out.length) parts.push(`Ya no hay: ${r.out.map((x) => x.name).join(", ")}`);
+      if (r.already.length) parts.push(`Ya tenías: ${r.already.join(", ")}`);
+      if (r.missing.length) parts.push(`No encontré: ${r.missing.join(", ")}`);
+      if (r.out.length && !r.added.length) toast(parts.join(". "), 5000, () => { r.out.forEach(shopOne); save(); render(); toast("Agregado a la lista del súper"); }, "Al súper");
+      else toast(parts.join(". ") || "No entendí. Escribe por ejemplo: huevos, salchicha", 4500, r.added.length || r.out.length ? () => restore(snap) : undefined);
+      setTimeout(() => { const n = $("#say"); if (n) n.focus(); }, 50);
     }
     if (kind === "shopQty") { const s = S.shop.find((x) => x.id === f.dataset.id); s.qty = Math.max(0, parseFloat(f.qty.value) || 0); s.unit = f.unit.value; save(); closeSheet(); render(); }
     if (kind === "recipe") {
@@ -842,7 +932,10 @@ Responde SOLO con un arreglo JSON, sin texto extra: [{"n":"nombre","e":"un emoji
     }
     if (kind === "cook") {
       const r = getRecipe(f.dataset.id); const snap = snapshot();
-      for (const [id, v] of new FormData(f)) { const it = S.inv.find((x) => x.id === id); if (it) { it.qty = Math.max(0, parseFloat(v) || 0); checkLow(it); } }
+      for (const [k, v] of new FormData(f)) {
+        if (k === "out") { const it = S.inv.find((x) => x.id === v); if (it) markOut(it); continue; }
+        const it = S.inv.find((x) => x.id === k); if (it) { const q = Math.max(0, parseFloat(v) || 0); if (q <= 0) markOut(it); else it.qty = q; }
+      }
       finishCook(r, () => restore(snap));
     }
   });

@@ -2,7 +2,7 @@
 
 Web app instalable (PWA) para:
 
-- **Despensa**: inventario de lo que hay en casa, con cantidades, aviso de "se está acabando" y fecha de caducidad.
+- **Despensa**: se escribe (o se dicta) lo que hay: "huevos, salchicha, leche" y queda como "sí hay", sin cantidades ni categorías. Cuando algo se termina: "ya no hay salchicha" o el botón **Se acabó**. Cantidad y caducidad son opcionales.
 - **Ideas**: recetas sugeridas según lo que hay, sus gustos, lo que no le gusta y su antojo del momento ("algo rápido con pollo para Gabriel"). Prioriza lo que caduca pronto.
 - **Súper**: lista de compras. Se llena sola con lo que se acaba y con lo que le falta a una receta. Lo comprado pasa a la despensa con un botón.
 - **Gustos**: le encanta / no le gusta, vegetariano, sin gluten, respaldo de datos.
@@ -10,7 +10,6 @@ Web app instalable (PWA) para:
 - **Mi menú**: platos planeados para la semana; con un botón se agrega al súper todo lo que falta.
 - **Modo cocina**: pasos que se tachan, temporizadores automáticos (detecta "8 minutos" en el paso) y pantalla siempre encendida.
 - **Mis recetas**: Mariana puede capturar sus propias recetas y guardar las de la IA.
-- **Agregar varios**: "12 huevos, 2 kg pollo, medio kilo de jamón" en un solo paso.
 - Entiende sinónimos (tomate = jitomate, pechuga = pollo, ketchup = cátsup, blanquillo = huevo).
 
 Los datos se guardan en el teléfono (localStorage). Funciona sin internet.

@@ -369,6 +369,23 @@ body.has-timers .toast { bottom: calc(150px + var(--safe-b)); }
 @keyframes popin { from { transform: scale(.3) rotate(-8deg); opacity: 0; } }
 @keyframes burst { from { transform: translate(-50%, -50%) rotate(var(--a)) translateY(0) scale(.4); opacity: 1; } to { transform: translate(-50%, -50%) rotate(var(--a)) translateY(calc(-1 * var(--d))) scale(1.1); opacity: 0; } }
 
+
+/* ---------- Despensa simple ---------- */
+.say .row { gap: 6px; }
+.say .hint { margin: 8px 0 0; }
+.say .quick { margin: 10px -4px -4px; padding-bottom: 4px; }
+.mic { width: 46px; padding: 0; color: var(--choco); }
+.mic.listening { background: var(--fresa); color: #fff; animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(1.08); } }
+.pill { flex: none; min-height: 36px; padding: 4px 12px; border: 2.5px solid var(--choco); border-radius: 999px; background: #fff; font-weight: 800; font-size: 13px; box-shadow: 0 2px 0 var(--choco); }
+.pill:active { transform: translateY(2px); box-shadow: none; }
+.pill-mint { background: var(--menta); }
+.inlist { flex: none; font-size: 12px; font-weight: 800; color: var(--choco-soft); }
+.gone { background: #F6EEEA; }
+.gone .iname { opacity: .7; }
+.gone .item { gap: 6px; }
+.linkbtn.center { margin: 4px auto 0; text-align: center; background: var(--leche); border-radius: 999px; padding: 6px 14px; }
+
 @media (min-width: 640px) {
   main, .top { width: 100%; max-width: 560px; margin-inline: auto; }
   .tabs { max-width: 540px; margin-inline: auto; }
