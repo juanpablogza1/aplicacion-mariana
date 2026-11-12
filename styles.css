@@ -241,9 +241,10 @@ label { font-weight: 800; font-size: 14px; display: grid; gap: 4px; }
 .ing, .steps { margin: 0; padding: 0 0 0 4px; }
 .ing { list-style: none; }
 .ing li { display: flex; gap: 8px; padding: 4px 0; font-weight: 700; }
-.ing li > span { width: 22px; flex: none; font-weight: 900; text-align: center; }
-.ing li.ok > span { color: #1F9D5B; }
-.ing li.no > span, .ing li.no small { color: #C2344F; }
+.ing li > span:first-child { width: 22px; flex: none; font-weight: 900; text-align: center; }
+.ing li > span:last-child { flex: 1; min-width: 0; }
+.ing li.ok > span:first-child { color: #1F9D5B; }
+.ing li.no > span:first-child, .ing li.no small { color: #C2344F; }
 .ing small { font-weight: 700; color: var(--choco-soft); margin-left: 4px; }
 .steps { padding-left: 24px; }
 .steps li { padding: 4px 0; }
@@ -267,6 +268,106 @@ label { font-weight: 800; font-size: 14px; display: grid; gap: 4px; }
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
 .toast button { border: 2px solid #fff; background: var(--fresa); color: #fff; border-radius: 999px; padding: 4px 10px; font-weight: 800; }
+
+
+/* ---------- Iteración 2 ---------- */
+.mascot { border: 0; background: none; padding: 0; border-radius: 50%; }
+.mascot:active .tomatina { transform: scale(.92); }
+.tag-ai { display: none; }
+.tag-mini { font: 800 11px/1 var(--body); background: var(--chicle); border: 2px solid var(--choco); border-radius: 6px; padding: 2px 5px; vertical-align: 3px; white-space: nowrap; }
+.tag-mini.ai { background: var(--cielo); }
+.tag-mini.menu { background: var(--mante); }
+
+/* Recomendado */
+.hero {
+  position: relative; margin: 10px 0 16px;
+  background: var(--mante); border: var(--line); border-radius: 26px; box-shadow: 0 5px 0 var(--choco);
+  background-image: radial-gradient(circle at 92% 18%, #FFF4B8 0 22px, transparent 23px), radial-gradient(circle at 80% 88%, #FFF4B8 0 10px, transparent 11px);
+}
+.ribbon {
+  position: absolute; top: -12px; right: 16px; z-index: 1;
+  background: var(--fresa); color: #fff; border: 2.5px solid var(--choco); border-radius: 999px;
+  font: 800 13px/1 var(--display); padding: 6px 12px 4px; transform: rotate(3deg);
+  text-shadow: 0 1px 0 var(--choco);
+}
+.hero-main { display: flex; gap: 14px; align-items: center; width: 100%; border: 0; background: none; text-align: left; padding: 16px 14px; }
+.plate {
+  flex: none; width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center;
+  background: #fff; border: var(--line); box-shadow: inset 0 0 0 6px var(--leche), inset 0 0 0 8px #F2CFD9;
+}
+.plate span { font-size: 40px; }
+.hero-name { font: 800 22px/1.05 var(--display); }
+.hero .stars .off { color: #fff; }
+
+/* Secciones de recetas */
+.rsec { margin: 0 0 18px; }
+.sec-title { display: inline-flex; align-items: center; gap: 8px; margin: 4px 0 4px; padding: 3px 14px 1px; font: 800 18px/1.2 var(--display); background: var(--leche); border: 2.5px solid var(--choco); border-radius: 999px; }
+.cnt { display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--rosa); color: #fff; font: 800 12px/1 var(--body); text-shadow: 0 1px 0 var(--choco); }
+.sec-hint { margin: 2px 4px 12px; font-size: 13px; font-weight: 800; color: var(--choco); text-shadow: 0 0 6px var(--chicle), 0 0 2px var(--chicle); }
+.rsec .sec-title + .recipes { margin-top: 12px; }
+.rsec .recipes + .btn { margin-top: 12px; }
+.note { background: var(--leche); border: 2.5px dashed var(--choco); border-radius: 16px; padding: 10px 14px; font-weight: 700; margin: 0 0 14px; }
+.linkbtn { display: block; margin: 10px 0 0; border: 0; background: none; padding: 4px 0; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+.addmine { margin-top: 4px; }
+
+/* Mi menú */
+.plan .h2 small, .h2 small { font: 700 14px var(--body); color: var(--choco-soft); margin-left: 6px; }
+.plan-list { list-style: none; margin: 0; padding: 0; }
+.plan-list li { display: flex; align-items: center; border-top: 2px dashed #F2CFD9; }
+.plan-list li:first-child { border-top: 0; }
+.plan-item { flex: 1; display: flex; align-items: center; gap: 10px; min-height: 48px; border: 0; background: none; text-align: left; padding: 0 2px; min-width: 0; }
+.plan-item > span:first-child { font-size: 24px; }
+.pname { flex: 1; font-weight: 800; min-width: 0; }
+.pstat { flex: none; font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 999px; border: 2px solid var(--choco); }
+.pstat.ok { background: var(--menta); }
+.pstat.no { background: #FFD3DD; }
+
+/* Avisos */
+.banner { display: flex; align-items: center; gap: 8px; background: var(--cielo); border: var(--line); border-radius: 18px; padding: 8px 6px 8px 14px; margin: 4px 0 12px; }
+.banner p { flex: 1; margin: 0; font-size: 14px; font-weight: 700; }
+.soon { background: #FFF6D1; }
+.soon p { margin: 0 0 10px; }
+.freq { margin: 0 0 14px; }
+.freq .chips { margin-top: 8px; }
+
+/* Formularios */
+textarea { width: 100%; padding: 10px 12px; background: #fff; border: var(--line); border-radius: 14px; font: 700 16px/1.4 var(--body); color: inherit; resize: vertical; }
+textarea::placeholder { color: #B79A8E; }
+label small { font-weight: 700; color: var(--choco-soft); }
+.emo { flex: none; width: 74px; }
+.emo input { text-align: center; font-size: 22px; padding: 4px; }
+.tagset { border: 0; padding: 0; margin: 0; }
+.tagset legend { font-weight: 800; font-size: 14px; padding: 0; }
+.tagset .chips { margin-top: 6px; }
+.chip-check { display: inline-flex; font-size: 14px; }
+.chip-check input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.chip-check span { display: inline-flex; align-items: center; min-height: 36px; padding: 4px 13px; border: 2.5px solid var(--choco); border-radius: 999px; background: #fff; font-weight: 800; }
+.chip-check input:checked + span { background: var(--rosa); color: #fff; text-shadow: 0 1px 0 var(--choco); }
+.chip-check input:focus-visible + span { outline: 3px solid var(--cielo); outline-offset: 2px; }
+
+/* Modo cocina */
+.sheet-head .heart { width: 48px; height: 48px; }
+.steps li { padding: 2px 0 8px; }
+.step { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 4px 0; font: 600 17px/1.45 var(--body); color: inherit; }
+.step.done { text-decoration: line-through; text-decoration-thickness: 2px; opacity: .45; }
+.timerbtn { margin: 2px 0 2px; border: 2.5px solid var(--choco); background: var(--cielo); border-radius: 999px; padding: 5px 12px; font-weight: 800; font-size: 14px; box-shadow: 0 2px 0 var(--choco); }
+.timerbtn:active { transform: translateY(2px); box-shadow: none; }
+
+.timers { position: fixed; left: 12px; right: 12px; bottom: calc(86px + var(--safe-b)); z-index: 6; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.timer { pointer-events: auto; display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 14px; background: var(--cielo); border: var(--line); border-radius: 18px; box-shadow: var(--pop); text-align: left; }
+.timer b { font: 800 22px/1 var(--display); font-variant-numeric: tabular-nums; }
+.timer span { flex: 1; min-width: 0; font-weight: 800; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timer i { font-style: normal; font-size: 22px; }
+body.has-timers main { padding-bottom: calc(170px + var(--safe-b)); }
+body.has-timers .toast { bottom: calc(150px + var(--safe-b)); }
+
+/* Celebración */
+.party { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(255,228,236,.7); }
+.party-card { position: relative; z-index: 1; display: grid; justify-items: center; background: var(--leche); border: var(--line); border-radius: 30px; box-shadow: 0 6px 0 var(--choco); padding: 18px 26px 14px; animation: popin .45s cubic-bezier(.2,1.6,.4,1) both; }
+.party-card p { margin: 4px 0 0; font: 800 28px/1 var(--display); color: var(--fresa); text-shadow: 2px 2px 0 var(--choco); }
+.spark { position: absolute; left: 50%; top: 50%; font-size: 30px; color: var(--mante); -webkit-text-stroke: 1.5px var(--choco); animation: burst .9s ease-out .15s both; }
+@keyframes popin { from { transform: scale(.3) rotate(-8deg); opacity: 0; } }
+@keyframes burst { from { transform: translate(-50%, -50%) rotate(var(--a)) translateY(0) scale(.4); opacity: 1; } to { transform: translate(-50%, -50%) rotate(var(--a)) translateY(calc(-1 * var(--d))) scale(1.1); opacity: 0; } }
 
 @media (min-width: 640px) {
   main, .top { width: 100%; max-width: 560px; margin-inline: auto; }

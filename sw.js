@@ -1,4 +1,4 @@
-const CACHE = "cocina-mariana-v2";
+const CACHE = "cocina-mariana-v3";
 const ASSETS = ["./", "index.html", "styles.css", "app.js", "recipes.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {
@@ -12,7 +12,7 @@ self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET" || url.hostname === "api.anthropic.com") return;
   // Archivos propios: red primero (para recibir actualizaciones), caché si no hay internet.
   if (url.origin === location.origin) {
-    e.respondWith(fetch(e.request).then((r) => { const cp = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, cp)); return r; }).catch(() => caches.match(e.request).then((r) => r || caches.match("index.html"))));
+    e.respondWith(fetch(e.request).then((r) => { const cp = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, cp)); return r; }).catch(() => caches.match(e.request, { ignoreSearch: true }).then((r) => r || caches.match("index.html"))));
     return;
   }
   // Fuentes de Google: caché primero.
