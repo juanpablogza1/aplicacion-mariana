@@ -208,14 +208,14 @@ label { font-weight: 800; font-size: 14px; display: grid; gap: 4px; }
 /* ---------- Barra inferior ---------- */
 .tabs {
   position: fixed; left: 10px; right: 10px; bottom: calc(10px + var(--safe-b)); z-index: 5;
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px;
   background: var(--mante); border: var(--line); border-radius: 26px; box-shadow: var(--pop);
   padding: 5px;
 }
 .tab {
   position: relative; display: grid; justify-items: center; gap: 0;
   border: 2.5px solid transparent; border-radius: 20px; background: none;
-  padding: 4px 0 3px; font: 800 13px/1.1 var(--display);
+  padding: 4px 0 3px; font: 800 12.5px/1.1 var(--display); min-width: 0;
 }
 .tab .ti { font-size: 22px; line-height: 1.2; transition: transform .15s; }
 .tab[aria-current="page"] { background: var(--leche); border-color: var(--choco); }
@@ -277,27 +277,6 @@ label { font-weight: 800; font-size: 14px; display: grid; gap: 4px; }
 .tag-mini { font: 800 11px/1 var(--body); background: var(--chicle); border: 2px solid var(--choco); border-radius: 6px; padding: 2px 5px; vertical-align: 3px; white-space: nowrap; }
 .tag-mini.ai { background: var(--cielo); }
 .tag-mini.menu { background: var(--mante); }
-
-/* Recomendado */
-.hero {
-  position: relative; margin: 10px 0 16px;
-  background: var(--mante); border: var(--line); border-radius: 26px; box-shadow: 0 5px 0 var(--choco);
-  background-image: radial-gradient(circle at 92% 18%, #FFF4B8 0 22px, transparent 23px), radial-gradient(circle at 80% 88%, #FFF4B8 0 10px, transparent 11px);
-}
-.ribbon {
-  position: absolute; top: -12px; right: 16px; z-index: 1;
-  background: var(--fresa); color: #fff; border: 2.5px solid var(--choco); border-radius: 999px;
-  font: 800 13px/1 var(--display); padding: 6px 12px 4px; transform: rotate(3deg);
-  text-shadow: 0 1px 0 var(--choco);
-}
-.hero-main { display: flex; gap: 14px; align-items: center; width: 100%; border: 0; background: none; text-align: left; padding: 16px 14px; }
-.plate {
-  flex: none; width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center;
-  background: #fff; border: var(--line); box-shadow: inset 0 0 0 6px var(--leche), inset 0 0 0 8px #F2CFD9;
-}
-.plate span { font-size: 40px; }
-.hero-name { font: 800 22px/1.05 var(--display); }
-.hero .stars .off { color: #fff; }
 
 /* Secciones de recetas */
 .rsec { margin: 0 0 18px; }
@@ -393,6 +372,19 @@ body.has-timers .toast { bottom: calc(150px + var(--safe-b)); }
 .gone .iname { opacity: .7; }
 .gone .item { gap: 6px; }
 .linkbtn.center { margin: 4px auto 0; text-align: center; background: var(--leche); border-radius: 999px; padding: 6px 14px; }
+
+/* ---------- Semana ---------- */
+.row.between { justify-content: space-between; margin-bottom: 6px; }
+.row.between .h2 { margin: 0; }
+.pname small { display: block; font-weight: 700; font-size: 12.5px; color: var(--choco-soft); line-height: 1.3; }
+.plan-list li { gap: 6px; padding: 2px 0; }
+.plan .row.end { margin-top: 10px; }
+.saymsg p + p { margin-top: 4px; }
+.saymsg .pill + p { margin-top: 6px; }
+.hint.small { font-size: 13px; margin: 10px 0 0; }
+.more { border: 2.5px dashed #E8C6CF; border-radius: 16px; padding: 8px 12px; }
+.more summary { font-weight: 800; cursor: pointer; min-height: 32px; display: flex; align-items: center; }
+.more[open] summary { margin-bottom: 10px; }
 
 @media (min-width: 640px) {
   main, .top { width: 100%; max-width: 560px; margin-inline: auto; }

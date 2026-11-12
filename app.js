@@ -42,7 +42,6 @@
   const QUICK_UNIT = { "Pollo": "kg", "Carne molida": "kg", "Pescado": "kg", "Leche": "l", "Arroz": "kg", "Frijol": "kg", "Harina": "kg", "Azúcar": "kg", "Tortilla": "kg", "Jitomate": "kg", "Papa": "kg", "Tomate verde": "kg", "Atún": "lata", "Fideo": "paquete", "Espagueti": "paquete", "Pan": "bolsa", "Avena": "bolsa", "Consomé": "caja" };
 
   const RECIPES = window.RECIPES || [];
-  const PIN = RECIPES.find((r) => r.pin);
   const STAPLES = new Set((window.STAPLES || []).map(norm));
   const KEYSET = new Set(RECIPES.flatMap((r) => r.i.map((x) => norm(x.k))));
   const QUICK = window.QUICK_ITEMS || [];
@@ -67,7 +66,7 @@
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { toast("No se pudo guardar: el almacenamiento del teléfono está lleno."); } };
 
   const urlTab = new URLSearchParams(location.search).get("tab");
-  if (["ideas", "despensa", "super", "gustos"].includes(urlTab)) S.ui.tab = urlTab;
+  if (["ideas", "semana", "despensa", "super", "gustos"].includes(urlTab)) S.ui.tab = urlTab;
 
   // ---------- Coincidencia de ingredientes ----------
   function matches(invName, key) {
@@ -108,7 +107,7 @@
   }
 
   // ---------- Recetas ----------
-  const allRecipes = () => RECIPES.filter((r) => !r.pin).concat(S.myRecipes, S.aiRecipes);
+  const allRecipes = () => RECIPES.concat(S.myRecipes, S.aiRecipes);
   const getRecipe = (id) => RECIPES.find((r) => r.id === id) || S.myRecipes.find((r) => r.id === id) || S.aiRecipes.find((r) => r.id === id);
 
   function analyze(r) {
@@ -277,7 +276,7 @@
     const [msg, mood] = tip();
     $("#mascot").innerHTML = TOMATINA(mood, 64);
     $("#bubble").textContent = msg;
-    main.innerHTML = ({ ideas: viewIdeas, despensa: viewDespensa, super: viewSuper, gustos: viewGustos })[S.ui.tab]();
+    main.innerHTML = ({ ideas: viewIdeas, semana: viewSemana, despensa: viewDespensa, super: viewSuper, gustos: viewGustos }[S.ui.tab] || viewIdeas)();
     main.scrollTop = lastTab === S.ui.tab ? y : 0;
     lastTab = S.ui.tab;
   }
@@ -292,37 +291,6 @@
     if (deferredPrompt) return `<div class="banner"><p>Instala la app para abrirla como cualquier otra y usarla sin internet.</p><button class="btn btn-small" data-act="install">Instalar</button><button class="x" data-act="dismissInstall" aria-label="Cerrar aviso">×</button></div>`;
     if (isIOS) return `<div class="banner"><p>Para instalarla: toca <b>Compartir</b> y luego <b>Agregar a pantalla de inicio</b>.</p><button class="x" data-act="dismissInstall" aria-label="Cerrar aviso">×</button></div>`;
     return "";
-  }
-
-  function heroCard() {
-    if (!PIN) return "";
-    const a = analyze(PIN);
-    return `
-    <article class="hero">
-      <span class="ribbon">Recomendado</span>
-      <button class="hero-main" data-act="open" data-id="${PIN.id}">
-        <span class="plate"><span>${esc(PIN.e)}</span></span>
-        <span class="rbody">
-          <span class="hero-name">${esc(PIN.n)}</span>
-          <span class="rmeta">${stars(a.ratio)} <span>${PIN.min} min</span></span>
-          <span class="rhave">${a.ratio === 1 ? "Tienes todo para hacerlo" : `Falta: ${a.miss.map((m) => esc(cleanName(m.t))).join(", ")}`}</span>
-        </span>
-      </button>
-    </article>`;
-  }
-
-  function planPanel() {
-    const rs = S.plan.map(getRecipe).filter(Boolean);
-    if (!rs.length) return "";
-    const missing = rs.reduce((n, r) => n + analyze(r).miss.length, 0);
-    return `
-    <section class="panel plan">
-      <h2 class="h2">Mi menú <small>${rs.length} ${rs.length === 1 ? "plato" : "platos"}</small></h2>
-      <ul class="plan-list">${rs.map((r) => { const a = analyze(r); return `
-        <li><button class="plan-item" data-act="open" data-id="${esc(r.id)}"><span aria-hidden="true">${esc(r.e || "🍽️")}</span><span class="pname">${esc(r.n)}</span><span class="pstat ${a.miss.length ? "no" : "ok"}">${a.miss.length ? `faltan ${a.miss.length}` : "lista"}</span></button>
-        <button class="x" data-act="unplan" data-id="${esc(r.id)}" aria-label="Quitar ${esc(r.n)} del menú">×</button></li>`; }).join("")}</ul>
-      ${missing ? `<button class="btn btn-mint wide" data-act="planToShop">Agregar lo que falta del menú al súper</button>` : ""}
-    </section>`;
   }
 
   function section(title, hint, shown, total, extra = "") {
@@ -343,8 +311,6 @@
     const filtered = S.ui.filters.length || S.ui.query;
     return `
     ${installBanner()}
-    ${heroCard()}
-    ${planPanel()}
     <section class="panel antojo">
       <label for="q" class="h2">¿Qué se te antoja?</label>
       <form class="row" data-form="search">
@@ -391,6 +357,7 @@
 
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let sayMsg = null, sayDraft = "", listening = false, fresh = new Set();
+  let weekMsg = null, weekDraft = "", voiceInput = "say";
 
   function processSay(txt) {
     txt = String(txt || "").trim();
@@ -423,11 +390,11 @@
     const soon = have.filter((it) => { const d = daysUntil(it.exp); return d !== null && d <= 3; }).sort((a, b) => a.exp.localeCompare(b.exp));
     const quick = QUICK.filter((q) => !have.some((it) => norm(it.name) === norm(q[0])));
     return `
-    <form class="panel say ${listening ? "is-listening" : ""}" data-form="say">
+    <form class="panel say ${listening && voiceInput === "say" ? "is-listening" : ""}" data-form="say">
       <label for="say" class="h2">¿Qué hay en tu casa?</label>
       <div class="row">
-        <input id="say" placeholder="${listening ? "Te escucho…" : "Ej. huevos, salchicha, leche"}" value="${esc(sayDraft)}" autocomplete="off" autocorrect="off" enterkeyhint="done">
-        <button type="button" class="btn btn-mint mic ${listening ? "listening" : ""}" data-act="mic" aria-label="${listening ? "Dejar de escuchar" : "Dictar con la voz"}"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="13" rx="4" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg></button>
+        <input id="say" placeholder="${listening && voiceInput === "say" ? "Te escucho…" : "Ej. huevos, salchicha, leche"}" value="${esc(sayDraft)}" autocomplete="off" autocorrect="off" enterkeyhint="done">
+        <button type="button" class="btn btn-mint mic ${listening && voiceInput === "say" ? "listening" : ""}" data-act="mic" data-target="say" aria-label="${listening ? "Dejar de escuchar" : "Dictar con la voz"}"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="13" rx="4" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg></button>
         <button class="btn" type="submit">Listo</button>
       </div>
       ${sayMsg ? `<div class="saymsg ${sayMsg.kind}" role="status"><p>${sayMsg.html}</p>${sayMsg.undo ? `<button type="button" class="pill" data-act="sayUndo">Deshacer</button>` : ""}${sayMsg.outs ? `<button type="button" class="pill pill-mint" data-act="sayToShop">Al súper</button>` : ""}</div>` : `<p class="hint">Cuando algo se termine, escribe <b>ya no hay salchicha</b>.</p>`}
@@ -474,6 +441,97 @@
 
   function frequent() {
     return Object.values(S.buyCount || {}).filter((b) => b.n >= 2 && !S.shop.some((s) => !s.done && norm(s.name) === norm(b.name))).sort((a, b) => b.n - a.n).slice(0, 10);
+  }
+
+  // ---------- Semana ----------
+  function planRecipe(r) {
+    if (!S.plan.includes(r.id)) S.plan.push(r.id);
+    const toBuy = [], inList = [];
+    for (const m of analyze(r).miss) { const name = cleanName(m.t); if (addShop({ name, src: r.n })) toBuy.push(name); else inList.push(name); }
+    return { r, toBuy, inList };
+  }
+  function unplanRecipe(id) {
+    const r = getRecipe(id);
+    S.plan = S.plan.filter((p) => p !== id);
+    if (!r) return;
+    S.shop = S.shop.filter((s) => s.done || s.src !== r.n);
+    S.plan.map(getRecipe).filter(Boolean).forEach((x) => analyze(x).miss.forEach((m) => addShop({ name: cleanName(m.t), src: x.n })));
+  }
+  const planLine = ({ r, toBuy, inList }) => `<b>${esc(r.n)}</b>: ${toBuy.length ? `agregué al súper ${toBuy.map(esc).join(", ")}` : inList.length ? "lo que falta ya estaba en tu lista" : "tienes todo"}`;
+  const NAME_STOP = new Set(["de", "la", "el", "los", "las", "con", "a", "al", "en", "mi", "mis", "y"]);
+  const nameWords = (s) => norm(s).split(" ").filter((w) => w && !NAME_STOP.has(w));
+  function findRecipeByName(term) {
+    const tw = nameWords(term); if (!tw.length) return { pick: null, options: [] };
+    const t = tw.join(" ");
+    const fits = (r) => { const nw = nameWords(r.n); return tw.every((w) => nw.includes(w)) || nw.every((w) => tw.includes(w)); };
+    const tiers = [
+      S.myRecipes.filter((r) => nameWords(r.n).join(" ") === t),
+      S.myRecipes.filter(fits),
+      [...RECIPES, ...S.aiRecipes].filter((r) => nameWords(r.n).join(" ") === t),
+      [...RECIPES, ...S.aiRecipes].filter(fits),
+    ];
+    for (const tier of tiers) {
+      if (tier.length === 1) return { pick: tier[0], options: [] };
+      if (tier.length > 1) return { pick: null, options: tier.slice(0, 8) };
+    }
+    return { pick: null, options: [] };
+  }
+  const WEEK_WORDS = new Set(["esta", "semana", "para", "en", "la", "el", "los", "las", "quiero", "quisiera", "voy", "vamos", "a", "cocinar", "hacer", "preparar", "comer", "me", "gustaria", "toca", "tambien", "y", "un", "una", "unos", "unas", "de"]);
+  function processWeek(txt) {
+    txt = String(txt || "").trim();
+    if (!txt) { weekMsg = { kind: "warn", html: "Escribe qué platillos quieres cocinar. Ejemplo: <b>picadillo, tinga</b>." }; weekDraft = ""; render(); const n = $("#week"); if (n) n.focus(); return; }
+    const inp = $("#week"); if (inp) inp.blur();
+    const snap = snapshot();
+    const results = [], notFound = [], ambiguous = [];
+    const terms = txt.split(/,|\n|\s+y\s+|\s+e\s+/i).map((s) => { const w = s.trim().split(/\s+/); while (w.length > 1 && WEEK_WORDS.has(strip(w[0]))) w.shift(); return w.join(" "); }).filter((s) => s && !WEEK_WORDS.has(strip(s)));
+    for (const term of terms) {
+      const f = findRecipeByName(term);
+      if (f.pick) results.push(planRecipe(f.pick));
+      else if (f.options.length) ambiguous.push({ term, options: f.options });
+      else notFound.push(term);
+    }
+    const groups = results.map((x) => ({ html: planLine(x) + "." }));
+    ambiguous.forEach(({ term, options }) => groups.push({ html: `Con "${esc(term)}" tengo varias. ¿Cuál quieres?`, buttons: options.map((r) => ({ act: "planPick", id: r.id, label: r.n })) }));
+    notFound.forEach((term) => groups.push({ html: `No tengo la receta de "${esc(term)}".`, buttons: [{ act: "newRecipeFor", name: cap(term), label: `Agregar receta de ${cap(term)}` }] }));
+    if (!groups.length) groups.push({ html: "No entendí qué platillo. Escribe por ejemplo: <b>picadillo</b>." });
+    weekMsg = { kind: results.length ? "ok" : "warn", groups, undo: results.length ? snap : null };
+    weekDraft = "";
+    save(); render(); vib(results.length ? [15, 40, 15] : 30);
+  }
+
+  function viewSemana() {
+    const plan = S.plan.map(getRecipe).filter(Boolean);
+    const mine = S.myRecipes.slice().sort((a, b) => a.n.localeCompare(b.n, "es"));
+    const L = listening && voiceInput === "week";
+    return `
+    <form class="panel say ${L ? "is-listening" : ""}" data-form="week">
+      <label for="week" class="h2">¿Qué quieres cocinar esta semana?</label>
+      <div class="row">
+        <input id="week" placeholder="${L ? "Te escucho…" : "Ej. picadillo, tinga"}" value="${esc(weekDraft)}" autocomplete="off" autocorrect="off" enterkeyhint="done">
+        <button type="button" class="btn btn-mint mic ${L ? "listening" : ""}" data-act="mic" data-target="week" aria-label="${L ? "Dejar de escuchar" : "Dictar con la voz"}"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="13" rx="4" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg></button>
+        <button class="btn" type="submit">Listo</button>
+      </div>
+      ${weekMsg ? `<div class="saymsg ${weekMsg.kind}" role="status">${(weekMsg.groups || [{ html: weekMsg.html }]).map((g) => `<p>${g.html}</p>${(g.buttons || []).map((x) => `<button type="button" class="pill ${x.act === "planPick" ? "pill-mint" : ""}" data-act="${x.act}" ${x.id ? `data-id="${esc(x.id)}"` : ""} ${x.name ? `data-name="${esc(x.name)}"` : ""}>${esc(x.label)}</button>`).join("")}`).join("")}${weekMsg.undo ? `<button type="button" class="pill" data-act="weekUndo">Deshacer</button>` : ""}</div>` : `<p class="hint">Lo pongo en tu menú y agrego al súper lo que te falte.</p>`}
+    </form>
+
+    <section class="panel plan">
+      <h2 class="h2">Menú de la semana ${plan.length ? `<small>${plan.length} ${plan.length === 1 ? "platillo" : "platillos"}</small>` : ""}</h2>
+      ${plan.length ? `<ul class="plan-list">${plan.map((r) => { const a = analyze(r); const pend = a.miss.map((m) => cleanName(m.t)); return `
+        <li><button class="plan-item" data-act="open" data-id="${esc(r.id)}"><span aria-hidden="true">${esc(r.e || "🍽️")}</span><span class="pname">${esc(r.n)}<small>${pend.length ? `Falta: ${pend.map(esc).join(", ")}` : "Tienes todo"}</small></span></button>
+        <button class="pill pill-mint" data-act="cook" data-id="${esc(r.id)}">Ya la hice</button>
+        <button class="x" data-act="unplan" data-id="${esc(r.id)}" aria-label="Quitar ${esc(r.n)} del menú">×</button></li>`; }).join("")}</ul>
+        <div class="row wrap end"><button class="btn btn-ghost btn-small" data-act="planToShop">Revisar qué falta</button><button class="btn btn-ghost btn-small" data-act="clearPlan">Semana nueva</button></div>`
+      : `<p class="hint">Aún no hay platillos. Escribe arriba lo que quieres cocinar.</p>`}
+    </section>
+
+    <section class="panel">
+      <div class="row between"><h2 class="h2">Mis recetas</h2><button class="btn btn-small" data-act="newRecipe">Agregar receta</button></div>
+      ${mine.length ? `<ul class="plan-list">${mine.map((r) => `
+        <li><button class="plan-item" data-act="open" data-id="${esc(r.id)}"><span aria-hidden="true">${esc(r.e || "🍽️")}</span><span class="pname">${esc(r.n)}<small>${r.i.map((x) => esc(cleanName(x.t))).join(", ")}</small></span></button>
+        ${S.plan.includes(r.id) ? `<span class="inlist">En el menú</span>` : `<button class="pill" data-act="planOne" data-id="${esc(r.id)}">Esta semana</button>`}</li>`).join("")}</ul>`
+      : `<p class="hint">Agrega los platillos que haces en tu casa: solo el nombre y sus ingredientes.</p>`}
+      <p class="hint small">También puedes escribir arriba cualquiera de las ${RECIPES.length} recetas que ya trae la app.</p>
+    </section>`;
   }
 
   function viewSuper() {
@@ -591,13 +649,13 @@
     openSheet(`
       <div class="sheet-head">
         <span class="bigemoji" aria-hidden="true">${esc(r.e || "🍽️")}</span>
-        <div class="grow"><h2>${esc(r.n)}</h2><p class="rmeta">${stars(a.ratio)} ${r.min} min${r.pin ? " · Recomendado" : ""}</p></div>
+        <div class="grow"><h2>${esc(r.n)}</h2><p class="rmeta">${stars(a.ratio)} ${r.min} min</p></div>
         <button class="heart ${fav ? "on" : ""}" data-act="fav" data-id="${esc(r.id)}" data-insheet="1" aria-label="${fav ? "Quitar de favoritas" : "Guardar en favoritas"}" aria-pressed="${fav}">♥</button>
       </div>
       <h3>Ingredientes</h3>
       <ul class="ing">${r.i.map((x) => { const st = isStaple(x.k) || haveKeys.has(x.k); return `<li class="${st ? "ok" : x.opt ? "opt" : "no"}"><span aria-hidden="true">${st ? "✓" : x.opt ? "·" : "✗"}</span><span>${esc(x.t)}${x.opt ? " <small>(opcional)</small>" : ""}${!st && !x.opt ? " <small>te falta</small>" : ""}</span></li>`; }).join("")}</ul>
-      <h3>Pasos</h3>
-      <p class="hint">Toca un paso para tacharlo. La pantalla se queda encendida mientras ves la receta.</p>
+      ${r.s.length ? `<h3>Pasos</h3>
+      <p class="hint">Toca un paso para tacharlo. La pantalla se queda encendida mientras ves la receta.</p>` : ""}
       <ol class="steps">${r.s.map((s) => { const t = timeIn(s); return `<li><button class="step" data-act="stepDone">${esc(s)}</button>${t ? `<button class="timerbtn" data-act="timer" data-min="${t}" data-label="${esc(r.n)}">⏲ Temporizador ${t >= 60 && t % 60 === 0 ? `${t / 60} h` : `${t} min`}</button>` : ""}</li>`; }).join("")}</ol>
       <div class="sheet-actions">
         <button class="btn" data-act="cook" data-id="${esc(r.id)}">Ya la cociné</button>
@@ -692,20 +750,25 @@
       </form>`);
   }
 
-  function openRecipeForm(r) {
-    r = r || { n: "", e: "", min: 20, tags: [], i: [], s: [] };
+  function openRecipeForm(r, opts = {}) {
+    r = r || { n: opts.name || "", e: "", min: 30, tags: [], i: [], s: [] };
     openSheet(`
-      <h2>${r.id ? "Editar receta" : "Mi receta"}</h2>
-      <form class="stack" data-form="recipe" data-id="${esc(r.id || "")}">
-        <div class="row">
-          <label class="emo">Ícono<input name="e" value="${esc(r.e)}" maxlength="4" placeholder="🍲" autocomplete="off"></label>
-          <label class="grow">Nombre<input name="n" required value="${esc(r.n)}" placeholder="Ej. Sopa de mi mamá" autocomplete="off"></label>
-        </div>
-        <label>Minutos<input name="min" type="number" inputmode="numeric" min="1" value="${r.min}"></label>
-        <fieldset class="tagset"><legend>Tipo</legend><div class="chips">${FORM_TAGS.map(([k, l]) => `<label class="chip-check"><input type="checkbox" name="tags" value="${k}" ${r.tags.includes(k) ? "checked" : ""}><span>${l}</span></label>`).join("")}</div></fieldset>
-        <label>Ingredientes <small>uno por renglón; pon "(opcional)" si no es indispensable</small><textarea name="i" rows="6" required placeholder="2 huevos&#10;1 jitomate&#10;Queso (opcional)">${esc(r.i.map((x) => x.t + (x.opt && !/opcional/i.test(x.t) ? " (opcional)" : "")).join("\n"))}</textarea></label>
-        <label>Pasos <small>uno por renglón</small><textarea name="s" rows="6" required placeholder="Bate los huevos.&#10;Cocina 5 minutos.">${esc(r.s.join("\n"))}</textarea></label>
-        <div class="sheet-actions"><button class="btn" type="submit">Guardar receta</button><button class="btn btn-ghost" type="button" data-act="close">Cancelar</button></div>
+      <h2>${r.id ? "Editar receta" : "Nueva receta"}</h2>
+      <form class="stack" data-form="recipe" data-id="${esc(r.id || "")}" data-plan="${opts.plan ? "1" : ""}">
+        <label>Nombre del platillo<input name="n" required value="${esc(r.n)}" placeholder="Ej. Picadillo" autocomplete="off" ${r.n ? "" : "autofocus"}></label>
+        <label>Ingredientes <small>separados por coma o uno por renglón</small><textarea name="i" rows="5" required ${r.n && !r.i.length ? "autofocus" : ""} placeholder="carne molida, papa, zanahoria, jitomate, cebolla">${esc(r.i.map((x) => x.t + (x.opt && !/opcional/i.test(x.t) ? " (opcional)" : "")).join("\n"))}</textarea></label>
+        <details class="more" ${r.s.length ? "open" : ""}>
+          <summary>Más detalles (opcional)</summary>
+          <div class="stack">
+            <div class="row">
+              <label class="emo">Ícono<input name="e" value="${esc(r.e)}" maxlength="4" placeholder="🍲" autocomplete="off"></label>
+              <label class="grow">Minutos<input name="min" type="number" inputmode="numeric" min="1" value="${r.min}"></label>
+            </div>
+            <fieldset class="tagset"><legend>Tipo</legend><div class="chips">${FORM_TAGS.map(([k, l]) => `<label class="chip-check"><input type="checkbox" name="tags" value="${k}" ${r.tags.includes(k) ? "checked" : ""}><span>${l}</span></label>`).join("")}</div></fieldset>
+            <label>Pasos <small>uno por renglón</small><textarea name="s" rows="5" placeholder="Dora la carne con la cebolla.&#10;Agrega la papa y cocina 15 minutos.">${esc(r.s.join("\n"))}</textarea></label>
+          </div>
+        </details>
+        <div class="sheet-actions"><button class="btn" type="submit">${opts.plan ? "Guardar y agregar a esta semana" : "Guardar receta"}</button><button class="btn btn-ghost" type="button" data-act="close">Cancelar</button></div>
       </form>`);
   }
   const keyFrom = (line) => cleanName(line.replace(/\(.*?\)/g, "").split(/,| para /)[0]).toLowerCase();
@@ -713,34 +776,40 @@
   // ---------- Voz ----------
   // En iPhone el dictado web no es confiable (y no existe en la app instalada): se usa el micrófono del teclado.
   let rec = null, recTimer = null, gotSpeech = false;
+  const VOICE = {
+    say: { set: (m) => { sayMsg = m; }, draft: (t) => { sayDraft = t; }, process: (t) => processSay(t), example: "huevos, salchicha y leche" },
+    week: { set: (m) => { weekMsg = m; }, draft: (t) => { weekDraft = t; }, process: (t) => processWeek(t), example: "picadillo y tinga" },
+  };
   function keyboardDictation(reason) {
     stopListening();
-    sayMsg = { kind: "info", html: `${reason ? reason + " " : ""}Toca el <b>micrófono de tu teclado</b> (abajo, junto a la barra espaciadora), dicta y luego toca <b>Listo</b>.` };
+    VOICE[voiceInput].set({ kind: "info", html: `${reason ? reason + " " : ""}Toca el <b>micrófono de tu teclado</b> (abajo, junto a la barra espaciadora), dicta y luego toca <b>Listo</b>.` });
     render();
-    const n = $("#say"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
+    const n = $("#" + voiceInput); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
   }
   function stopListening() {
     clearTimeout(recTimer);
     if (rec) { const r = rec; rec = null; try { r.abort(); } catch { /* nada */ } }
-    if (listening) { listening = false; if (S.ui.tab === "despensa") render(); }
+    if (listening) { listening = false; render(); }
   }
-  function listen() {
+  function listen(target) {
     if (listening) { stopListening(); return; }
+    voiceInput = VOICE[target] ? target : "say";
+    const V = VOICE[voiceInput];
     if (!SR || isIOS) { keyboardDictation(""); return; }
     try {
       rec = new SR(); rec.lang = "es-MX"; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
     } catch { keyboardDictation("El dictado de la app no está disponible aquí."); return; }
-    gotSpeech = false; listening = true; sayDraft = "";
-    sayMsg = { kind: "info", html: "<b>Te escucho…</b> di por ejemplo: huevos, salchicha y leche." };
+    gotSpeech = false; listening = true; V.draft("");
+    V.set({ kind: "info", html: `<b>Te escucho…</b> di por ejemplo: ${V.example}.` });
     render();
     const mine = rec;
     rec.onresult = (e) => {
       if (rec !== mine) return;
       let txt = "", final = false;
       for (let i = 0; i < e.results.length; i++) { txt += e.results[i][0].transcript; if (e.results[i].isFinal) final = true; }
-      gotSpeech = true; sayDraft = txt;
-      const n = $("#say"); if (n) n.value = txt;
-      if (final) { clearTimeout(recTimer); rec = null; listening = false; setTimeout(() => processSay(txt), 500); }
+      gotSpeech = true; V.draft(txt);
+      const n = $("#" + voiceInput); if (n) n.value = txt;
+      if (final) { clearTimeout(recTimer); rec = null; listening = false; setTimeout(() => V.process(txt), 500); }
     };
     rec.onerror = (e) => {
       if (rec !== mine) return;
@@ -841,7 +910,7 @@ Responde SOLO con un arreglo JSON, sin texto extra: [{"n":"nombre","e":"un emoji
     const id = b.dataset.id, act = b.dataset.act;
     const it = S.inv.find((x) => x.id === id), sh = S.shop.find((x) => x.id === id);
     switch (act) {
-      case "tab": S.ui.tab = b.dataset.tab; sayMsg = null; stopListening(); closeSheet(); save(); render(); break;
+      case "tab": S.ui.tab = b.dataset.tab; sayMsg = null; weekMsg = null; stopListening(); closeSheet(); save(); render(); break;
       case "filter": { const k = b.dataset.k; S.ui.filters = S.ui.filters.includes(k) ? S.ui.filters.filter((f) => f !== k) : [...S.ui.filters, k]; S.ui.showAll = false; vib(); save(); render(); break; }
       case "clearFilters": S.ui.filters = []; S.ui.query = ""; S.ui.showAll = false; save(); render(); break;
       case "showAll": S.ui.showAll = true; save(); render(); break;
@@ -860,10 +929,12 @@ Responde SOLO con un arreglo JSON, sin texto extra: [{"n":"nombre","e":"un emoji
         if (b.dataset.insheet) { const on = S.favs.includes(id); b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); b.setAttribute("aria-label", on ? "Quitar de favoritas" : "Guardar en favoritas"); }
         render(); break;
       }
-      case "plan": case "unplan":
-        S.plan = act === "plan" ? [...new Set([...S.plan, id])] : S.plan.filter((p) => p !== id); save(); render();
-        if (b.dataset.insheet) openRecipe(id);
-        toast(act === "plan" ? "Agregada a tu menú (arriba en Ideas)" : "Quitada de tu menú"); break;
+      case "plan": { const res = planRecipe(getRecipe(id)); save(); render(); if (b.dataset.insheet) openRecipe(id); toast(res.toBuy.length ? `En tu menú. Al súper: ${res.toBuy.join(", ")}` : "En tu menú de la semana", 4500); break; }
+      case "unplan": unplanRecipe(id); save(); render(); if (b.dataset.insheet) openRecipe(id); toast("Quitada del menú y de la lista del súper"); break;
+      case "planOne": case "planPick": { const res = planRecipe(getRecipe(id)); weekMsg = { kind: "ok", html: planLine(res) + "." }; save(); render(); vib(); break; }
+      case "newRecipeFor": openRecipeForm(null, { name: b.dataset.name, plan: true }); break;
+      case "weekUndo": if (weekMsg && weekMsg.undo) { restore(weekMsg.undo); weekMsg = { kind: "warn", html: "Listo, lo regresé como estaba." }; render(); } break;
+      case "clearPlan": if (confirm("¿Empezar una semana nueva? Se vacía el menú (la lista del súper se queda igual).")) { const snap = snapshot(); S.plan = []; save(); render(); toast("Menú vacío", 4000, () => restore(snap)); } break;
       case "planToShop": {
         let n = 0; S.plan.map(getRecipe).filter(Boolean).forEach((r) => analyze(r).miss.forEach((m) => { if (addShop({ name: cleanName(m.t), src: r.n })) n++; }));
         save(); render(); toast(n ? `${n} ${n === 1 ? "cosa agregada" : "cosas agregadas"} al súper` : "Ya estaba todo en tu lista"); break;
@@ -880,14 +951,14 @@ Responde SOLO con un arreglo JSON, sin texto extra: [{"n":"nombre","e":"un emoji
       case "cook": openCook(id); break;
       case "newRecipe": openRecipeForm(); break;
       case "editRecipe": openRecipeForm(getRecipe(id)); break;
-      case "delRecipe": if (confirm("¿Borrar esta receta?")) { S.myRecipes = S.myRecipes.filter((r) => r.id !== id); S.plan = S.plan.filter((p) => p !== id); save(); closeSheet(); render(); toast("Receta borrada"); } break;
+      case "delRecipe": if (confirm("¿Borrar esta receta?")) { if (S.plan.includes(id)) unplanRecipe(id); S.myRecipes = S.myRecipes.filter((r) => r.id !== id); save(); closeSheet(); render(); toast("Receta borrada"); } break;
       case "saveAi": { const r = getRecipe(id); const copy = { ...JSON.parse(JSON.stringify(r)), id: "my-" + uid(), ai: false, mine: true }; S.myRecipes.push(copy); S.aiRecipes = S.aiRecipes.filter((x) => x.id !== id); S.plan = S.plan.map((p) => (p === id ? copy.id : p)); save(); closeSheet(); render(); toast("Guardada en tus recetas"); break; }
       case "addInv": openItemForm(); break;
       case "out": { const snap = snapshot(); markOut(it); vib(); save(); render(); toast(`Ya no hay ${it.name}`, 4500, () => { shopOne(it); save(); render(); toast("Agregado a la lista del súper", 3000, () => restore(snap)); }, "Al súper"); break; }
       case "haveAgain": it.qty = it.simple || !it.lastQty ? 1 : it.lastQty; vib(); save(); render(); break;
       case "outToShop": shopOne(it); vib(); save(); render(); toast(`Se agregó al súper: ${it.name}`); break;
       case "quickHave": processSay(b.dataset.name); break;
-      case "mic": listen(); break;
+      case "mic": listen(b.dataset.target); break;
       case "sayUndo": if (sayMsg && sayMsg.undo) { restore(sayMsg.undo); sayMsg = { kind: "warn", html: "Listo, lo regresé como estaba." }; render(); } break;
       case "sayToShop": if (sayMsg && sayMsg.outs) { let n = 0; sayMsg.outs.forEach((oid) => { const x = S.inv.find((y) => y.id === oid); if (x && shopOne(x)) n++; }); sayMsg = { kind: "ok", html: n ? "Lo pasé a la lista del súper." : "Ya estaba en la lista del súper." }; save(); render(); } break;
       case "editInv": openItemForm(it); break;
@@ -941,7 +1012,7 @@ Responde SOLO con un arreglo JSON, sin texto extra: [{"n":"nombre","e":"un emoji
     }
   });
 
-  document.addEventListener("input", (e) => { if (e.target.id === "say") sayDraft = e.target.value; });
+  document.addEventListener("input", (e) => { if (e.target.id === "say") sayDraft = e.target.value; if (e.target.id === "week") weekDraft = e.target.value; });
 
   document.addEventListener("submit", (e) => {
     const f = e.target; const kind = f.dataset.form; if (!kind) return;
@@ -963,20 +1034,23 @@ Responde SOLO con un arreglo JSON, sin texto extra: [{"n":"nombre","e":"un emoji
       save(); closeSheet(); render();
     }
     if (kind === "say") { stopListening(); processSay($("#say").value); }
+    if (kind === "week") { stopListening(); processWeek($("#week").value); }
     if (kind === "shopQty") { const s = S.shop.find((x) => x.id === f.dataset.id); s.qty = Math.max(0, parseFloat(f.qty.value) || 0); s.unit = f.unit.value; save(); closeSheet(); render(); }
     if (kind === "recipe") {
       const fd = new FormData(f);
       const lines = (v) => String(v || "").split("\n").map((x) => x.trim()).filter(Boolean);
       const r = {
         id: f.dataset.id || "my-" + uid(), mine: true,
-        n: String(fd.get("n")).trim(), e: String(fd.get("e")).trim() || "🍽️", min: parseInt(fd.get("min"), 10) || 20,
+        n: cap(String(fd.get("n")).trim()), e: String(fd.get("e") || "").trim() || "🍽️", min: parseInt(fd.get("min"), 10) || 30,
         tags: fd.getAll("tags"),
-        i: lines(fd.get("i")).map((t) => ({ k: keyFrom(t), t: t.replace(/\s*\(opcional\)\s*/i, " ").trim(), opt: /opcional/i.test(t) })),
+        i: String(fd.get("i") || "").split(/\n|,(?!\d)/).map((x) => x.trim()).filter(Boolean).map((t) => ({ k: keyFrom(t), t: cap(t.replace(/\s*\(opcional\)\s*/i, " ").trim()), opt: /opcional/i.test(t) })),
         s: lines(fd.get("s")).map((x) => x.replace(/^\d+[.)-]\s*/, "")),
       };
       const i = S.myRecipes.findIndex((x) => x.id === r.id);
       if (i >= 0) S.myRecipes[i] = r; else S.myRecipes.push(r);
-      save(); render(); openRecipe(r.id); toast("Receta guardada");
+      if (f.dataset.plan === "1") { const res = planRecipe(r); weekMsg = { kind: "ok", html: `Guardé la receta. ${planLine(res)}.` }; save(); closeSheet(); S.ui.tab = "semana"; render(); }
+      else if (S.ui.tab === "semana") { weekMsg = { kind: "ok", html: `Guardé <b>${esc(r.n)}</b>. Escríbela arriba o toca <b>Esta semana</b> cuando la quieras cocinar.` }; save(); closeSheet(); render(); }
+      else { save(); render(); openRecipe(r.id); toast("Receta guardada"); }
     }
     if (kind === "cook") {
       const r = getRecipe(f.dataset.id); const snap = snapshot();

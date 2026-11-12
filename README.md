@@ -6,8 +6,7 @@ Web app instalable (PWA) para:
 - **Ideas**: recetas sugeridas según lo que hay, sus gustos, lo que no le gusta y su antojo del momento ("algo rápido con pollo para Gabriel"). Prioriza lo que caduca pronto.
 - **Súper**: lista de compras. Se llena sola con lo que se acaba y con lo que le falta a una receta. Lo comprado pasa a la despensa con un botón.
 - **Gustos**: le encanta / no le gusta, vegetariano, sin gluten, respaldo de datos.
-- **Recomendado**: "Huevito con cátsup" siempre aparece hasta arriba en Ideas.
-- **Mi menú**: platos planeados para la semana; con un botón se agrega al súper todo lo que falta.
+- **Semana**: Mariana guarda sus platillos (nombre e ingredientes). Escribe "esta semana quiero picadillo" y se agrega al menú, y al súper lo que no tiene.
 - **Modo cocina**: pasos que se tachan, temporizadores automáticos (detecta "8 minutos" en el paso) y pantalla siempre encendida.
 - **Mis recetas**: Mariana puede capturar sus propias recetas y guardar las de la IA.
 - Entiende sinónimos (tomate = jitomate, pechuga = pollo, ketchup = cátsup, blanquillo = huevo).

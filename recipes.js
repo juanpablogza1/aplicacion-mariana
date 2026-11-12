@@ -2,7 +2,7 @@
 // que se compara contra la despensa, y "t" el texto que se muestra.
 // "opt: true" = opcional (no penaliza si falta).
 window.RECIPES = [
-  { id: "huevito-catsup", pin: true, n: "Huevito con cátsup", e: "🍳", min: 10, tags: ["desayuno", "cena", "rapido", "ninos", "vegetariano", "sin-gluten"],
+  { id: "huevito-catsup", n: "Huevito con cátsup", e: "🍳", min: 10, tags: ["desayuno", "cena", "rapido", "ninos", "vegetariano", "sin-gluten"],
     i: [{ k: "huevo", t: "2 huevos" }, { k: "catsup", t: "Cátsup al gusto" }, { k: "mantequilla", t: "1 cdita de mantequilla", opt: true }, { k: "tortilla", t: "Tortillas o pan para acompañar", opt: true }],
     s: ["Calienta la mantequilla (o un chorrito de aceite) en un sartén a fuego medio.", "Bate los huevos con una pizca de sal y viértelos.", "Revuelve suave hasta que cuajen pero sigan jugosos.", "Sirve y ponle cátsup encima al gusto.", "Acompaña con tortillas calientes o pan."] },
   { id: "huevos-mexicana", n: "Huevos a la mexicana", e: "🍳", min: 15, tags: ["desayuno", "rapido", "vegetariano", "sin-gluten"],

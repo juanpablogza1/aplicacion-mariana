@@ -1,4 +1,4 @@
-const CACHE = "cocina-mariana-v5";
+const CACHE = "cocina-mariana-v6";
 const ASSETS = ["./", "index.html", "styles.css", "app.js", "recipes.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {
