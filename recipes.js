@@ -2,6 +2,9 @@
 // que se compara contra la despensa, y "t" el texto que se muestra.
 // "opt: true" = opcional (no penaliza si falta).
 window.RECIPES = [
+  { id: "huevito-catsup", pin: true, n: "Huevito con cátsup", e: "🍳", min: 10, tags: ["desayuno", "cena", "rapido", "ninos", "vegetariano", "sin-gluten"],
+    i: [{ k: "huevo", t: "2 huevos" }, { k: "catsup", t: "Cátsup al gusto" }, { k: "mantequilla", t: "1 cdita de mantequilla", opt: true }, { k: "tortilla", t: "Tortillas o pan para acompañar", opt: true }],
+    s: ["Calienta la mantequilla (o un chorrito de aceite) en un sartén a fuego medio.", "Bate los huevos con una pizca de sal y viértelos.", "Revuelve suave hasta que cuajen pero sigan jugosos.", "Sirve y ponle cátsup encima al gusto.", "Acompaña con tortillas calientes o pan."] },
   { id: "huevos-mexicana", n: "Huevos a la mexicana", e: "🍳", min: 15, tags: ["desayuno", "rapido", "vegetariano", "sin-gluten"],
     i: [{ k: "huevo", t: "4 huevos" }, { k: "jitomate", t: "1 jitomate" }, { k: "cebolla", t: "1/4 de cebolla" }, { k: "chile serrano", t: "1 chile serrano", opt: true }, { k: "tortilla", t: "Tortillas para acompañar", opt: true }],
     s: ["Pica jitomate, cebolla y chile.", "Sofríe en un poco de aceite 3 minutos.", "Agrega los huevos batidos con sal y mueve hasta que cuajen.", "Sirve con tortillas calientes."] },
@@ -153,5 +156,5 @@ window.QUICK_ITEMS = [
   ["Huevo", "🥚", "Lácteos y huevo"], ["Leche", "🥛", "Lácteos y huevo"], ["Queso", "🧀", "Lácteos y huevo"], ["Crema", "🍶", "Lácteos y huevo"], ["Mantequilla", "🧈", "Lácteos y huevo"], ["Yogurt", "🥣", "Lácteos y huevo"],
   ["Pollo", "🍗", "Carnes"], ["Carne molida", "🥩", "Carnes"], ["Jamón", "🥓", "Carnes"], ["Salchicha", "🌭", "Carnes"], ["Pescado", "🐟", "Carnes"],
   ["Jitomate", "🍅", "Frutas y verduras"], ["Cebolla", "🧅", "Frutas y verduras"], ["Ajo", "🧄", "Frutas y verduras"], ["Papa", "🥔", "Frutas y verduras"], ["Zanahoria", "🥕", "Frutas y verduras"], ["Calabacita", "🥒", "Frutas y verduras"], ["Aguacate", "🥑", "Frutas y verduras"], ["Limón", "🍋", "Frutas y verduras"], ["Plátano", "🍌", "Frutas y verduras"], ["Fresa", "🍓", "Frutas y verduras"], ["Lechuga", "🥬", "Frutas y verduras"], ["Chile serrano", "🌶️", "Frutas y verduras"], ["Tomate verde", "🟢", "Frutas y verduras"],
-  ["Tortilla", "🫓", "Despensa"], ["Arroz", "🍚", "Despensa"], ["Frijol", "🫘", "Despensa"], ["Fideo", "🍜", "Despensa"], ["Espagueti", "🍝", "Despensa"], ["Atún", "🥫", "Despensa"], ["Harina", "🌾", "Despensa"], ["Azúcar", "🍬", "Despensa"], ["Avena", "🥣", "Despensa"], ["Pan", "🍞", "Despensa"], ["Consomé", "🧂", "Despensa"],
+  ["Tortilla", "🫓", "Despensa"], ["Arroz", "🍚", "Despensa"], ["Frijol", "🫘", "Despensa"], ["Fideo", "🍜", "Despensa"], ["Espagueti", "🍝", "Despensa"], ["Atún", "🥫", "Despensa"], ["Harina", "🌾", "Despensa"], ["Azúcar", "🍬", "Despensa"], ["Avena", "🥣", "Despensa"], ["Pan", "🍞", "Despensa"], ["Consomé", "🧂", "Despensa"], ["Cátsup", "🍅", "Despensa"],
 ];

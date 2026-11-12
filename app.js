@@ -70,6 +70,7 @@
     const pool = RECIPES.concat(S.aiRecipes || []);
     const out = [];
     for (const r of pool) {
+      if (r.pin) { const a = analyze(r); out.push({ r, a, ratio: a.req ? a.have.length / a.req : 1, score: Infinity, reasons: ["la favorita de siempre"] }); continue; }
       if (S.prefs.veg && !r.tags.includes("vegetariano")) continue;
       if (S.prefs.gf && !r.tags.includes("sin-gluten")) continue;
       if (S.ui.filters.length && !S.ui.filters.every((f) => r.tags.includes(f) || (f === "postre" && r.tags.includes("dulce")))) continue;
@@ -161,7 +162,7 @@
   function viewIdeas() {
     const list = scoreRecipes();
     const ready = list.filter((x) => x.ratio === 1);
-    const top = list.slice(0, 24);
+    const top = list.slice(0, 25);
     return `
     <section class="panel antojo">
       <label for="q" class="h2">¿Qué se te antoja?</label>
